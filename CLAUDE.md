@@ -212,7 +212,8 @@ curl -X POST http://localhost:8000/api/backtest/compare \
 ## 下一步（參考 ROADMAP.md）
 
 短期優先：
-- [ ] 加入止損/止盈機制
+- [ ] 加入止損/止盈機制（高優先 — 槓桿的前提）
+- [ ] 槓桿支援（合約交易 2x~10x）
 - [ ] 支援做空
 - [x] 加入更多策略（RSI+MACD Confluence、SuperTrend、Volume Breakout）
 - [x] AI Agent 自動策略研究工作流（`/research` command）
