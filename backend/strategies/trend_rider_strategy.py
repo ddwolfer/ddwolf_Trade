@@ -32,7 +32,7 @@ class TrendRiderStrategy(BaseStrategy):
             "category": "trend_following",
             "parameters": {
                 "fast_ema": {
-                    "type": "int", "default": 21, "min": 5, "max": 100,
+                    "type": "int", "default": 34, "min": 5, "max": 100,
                     "description": "Fast EMA period for trend direction"
                 },
                 "slow_ema": {
@@ -44,11 +44,11 @@ class TrendRiderStrategy(BaseStrategy):
                     "description": "ATR period for trailing stop calculation"
                 },
                 "atr_multiplier": {
-                    "type": "float", "default": 3.0, "min": 1.0, "max": 6.0,
+                    "type": "float", "default": 4.0, "min": 1.0, "max": 6.0,
                     "description": "ATR multiplier for trailing stop distance (higher = wider stop = fewer exits)"
                 },
                 "trend_filter_ema": {
-                    "type": "int", "default": 200, "min": 50, "max": 300,
+                    "type": "int", "default": 100, "min": 50, "max": 300,
                     "description": "Long-term EMA filter — only buy when price is above this"
                 },
             }
