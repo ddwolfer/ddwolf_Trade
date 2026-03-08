@@ -44,6 +44,20 @@ class SessionManager:
             if s.get("state") == "running":
                 self._persistence.save_session_state(s["session_id"], "interrupted")
 
+    def recover_interrupted(self) -> int:
+        """Public method to mark any 'running' sessions as 'interrupted'.
+
+        Intended to be called from app.py on server startup.
+        Returns the number of sessions that were recovered.
+        """
+        sessions = self._persistence.get_all_sessions()
+        count = 0
+        for s in sessions:
+            if s.get("state") == "running":
+                self._persistence.save_session_state(s["session_id"], "interrupted")
+                count += 1
+        return count
+
     def deploy(self, config: TradingSessionConfig) -> Dict[str, Any]:
         """Start a new paper trading session.
 

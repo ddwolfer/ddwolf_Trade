@@ -28,6 +28,12 @@ from live.session_manager import SessionManager
 from live.models import TradingSessionConfig
 
 _session_manager = SessionManager()
+# Recover any sessions that were "running" when the server last shut down.
+# SessionManager.__init__ already calls _recover_interrupted(), but we
+# also expose a public method so the recovery can be triggered explicitly.
+_recovered = _session_manager.recover_interrupted()
+if _recovered:
+    print(f"[Recovery] Marked {_recovered} interrupted session(s) from previous run.")
 
 
 class BacktestHandler(SimpleHTTPRequestHandler):
