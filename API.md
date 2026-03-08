@@ -341,6 +341,230 @@ GET /api/data/BTCUSDT?interval=4h&start_date=2024-06-01&end_date=2024-12-01&limi
 
 ---
 
+## Paper Trading（模擬交易）
+
+Paper Trading 讓你用模擬資金測試策略的即時表現，無需真實下單。Session 在背景線程中逐根 K 棒執行策略信號，所有訂單、持倉、資金曲線均持久化到 SQLite。
+
+### POST /api/paper/deploy
+
+部署一個新的 Paper Trading session。
+
+**請求 Body：**
+
+| 欄位 | 類型 | 預設值 | 說明 |
+|------|------|--------|------|
+| `symbol` | string | `"BTCUSDT"` | 交易對 |
+| `interval` | string | `"1h"` | K 線週期 |
+| `strategy_name` | string | `"RSI"` | 策略名稱 |
+| `strategy_params` | object | `{}` | 策略參數 |
+| `initial_capital` | number | `10000` | 初始資金（USD） |
+| `commission_rate` | number | `0.001` | 手續費率（0.1%） |
+| `slippage_rate` | number | `0.0005` | 滑點率（0.05%） |
+| `data_start_date` | string | `"2024-01-01"` | 數據開始日期 |
+| `data_end_date` | string | `"2025-01-01"` | 數據結束日期 |
+| `tick_interval_seconds` | number | `1.0` | 每根 K 棒處理間隔（秒） |
+
+**請求範例：**
+
+```json
+{
+  "symbol": "BTCUSDT",
+  "interval": "1h",
+  "strategy_name": "RSI",
+  "strategy_params": {"period": 14, "overbought": 70, "oversold": 30},
+  "initial_capital": 10000
+}
+```
+
+**回應範例：**
+
+```json
+{
+  "session_id": "a1b2c3d4",
+  "state": "running",
+  "config": {
+    "session_id": "a1b2c3d4",
+    "symbol": "BTCUSDT",
+    "interval": "1h",
+    "strategy_name": "RSI",
+    "strategy_params": {"period": 14, "overbought": 70, "oversold": 30},
+    "initial_capital": 10000.0,
+    "commission_rate": 0.001,
+    "slippage_rate": 0.0005
+  },
+  "candles_processed": 0,
+  "signals_generated": 0,
+  "account": {
+    "total_equity": 10000.0,
+    "available_cash": 10000.0,
+    "unrealized_pnl": 0.0,
+    "realized_pnl": 0.0
+  },
+  "open_positions": []
+}
+```
+
+### POST /api/paper/{id}/stop
+
+停止指定 session。
+
+**回應範例：**
+
+```json
+{
+  "session_id": "a1b2c3d4",
+  "state": "stopped",
+  "candles_processed": 150,
+  "signals_generated": 8,
+  "account": {
+    "total_equity": 10450.0,
+    "available_cash": 10450.0,
+    "unrealized_pnl": 0.0,
+    "realized_pnl": 450.0
+  },
+  "open_positions": []
+}
+```
+
+### POST /api/paper/{id}/close-all
+
+緊急平倉指定 session 的所有持倉。
+
+**回應範例：**
+
+```json
+{
+  "session_id": "a1b2c3d4",
+  "closed_orders": [
+    {
+      "order_id": "ord_abc123",
+      "session_id": "a1b2c3d4",
+      "symbol": "BTCUSDT",
+      "side": "SELL",
+      "order_type": "MARKET",
+      "quantity": 0.15,
+      "price": 65000.0,
+      "status": "FILLED",
+      "reason": "Emergency close via API"
+    }
+  ]
+}
+```
+
+### GET /api/paper
+
+列出所有 Paper Trading sessions（含活躍和歷史）。
+
+**回應範例：**
+
+```json
+{
+  "sessions": [
+    {
+      "session_id": "a1b2c3d4",
+      "state": "running",
+      "config": {"symbol": "BTCUSDT", "strategy_name": "RSI"},
+      "candles_processed": 150,
+      "signals_generated": 8,
+      "account": {"total_equity": 10450.0},
+      "open_positions": []
+    },
+    {
+      "session_id": "e5f6g7h8",
+      "state": "stopped",
+      "config": {"symbol": "ETHUSDT", "strategy_name": "MACD"},
+      "candles_processed": 200,
+      "signals_generated": 12,
+      "account": {"total_equity": 9800.0},
+      "open_positions": []
+    }
+  ]
+}
+```
+
+### GET /api/paper/{id}
+
+取得指定 session 的詳細狀態（格式同 deploy 回應）。
+
+### GET /api/paper/{id}/orders
+
+取得指定 session 的所有訂單記錄。
+
+**回應範例：**
+
+```json
+{
+  "session_id": "a1b2c3d4",
+  "orders": [
+    {
+      "order_id": "ord_001",
+      "session_id": "a1b2c3d4",
+      "symbol": "BTCUSDT",
+      "side": "BUY",
+      "order_type": "MARKET",
+      "quantity": 0.15,
+      "price": 64000.0,
+      "status": "FILLED",
+      "filled_quantity": 0.15,
+      "avg_fill_price": 64032.0,
+      "commission": 9.6,
+      "created_time": 1704067200000,
+      "filled_time": 1704067200000,
+      "created_time_str": "2024-01-01 08:00:00",
+      "filled_time_str": "2024-01-01 08:00:00",
+      "reason": ""
+    }
+  ]
+}
+```
+
+### GET /api/paper/{id}/positions
+
+取得指定 session 的所有持倉（含已平倉）。
+
+**回應範例：**
+
+```json
+{
+  "session_id": "a1b2c3d4",
+  "positions": [
+    {
+      "position_id": "pos_001",
+      "session_id": "a1b2c3d4",
+      "symbol": "BTCUSDT",
+      "side": "LONG",
+      "quantity": 0.15,
+      "entry_price": 64032.0,
+      "entry_time": 1704067200000,
+      "exit_price": 65500.0,
+      "exit_time": 1704153600000,
+      "unrealized_pnl": 0.0,
+      "realized_pnl": 220.2,
+      "status": "CLOSED",
+      "entry_time_str": "2024-01-01 08:00:00",
+      "exit_time_str": "2024-01-02 08:00:00"
+    }
+  ]
+}
+```
+
+### GET /api/paper/{id}/equity
+
+取得指定 session 的資金曲線數據（可用於繪圖）。
+
+**回應範例：**
+
+```json
+{
+  "session_id": "a1b2c3d4",
+  "equity_curve": [10000.0, 10050.0, 10120.0, 10080.0, 10450.0],
+  "timestamps": [1704067200000, 1704070800000, 1704074400000, 1704078000000, 1704081600000],
+  "cash_curve": [10000.0, 4020.0, 4020.0, 4020.0, 10450.0]
+}
+```
+
+---
+
 ## 支援的交易對
 
 `BTCUSDT`, `ETHUSDT`, `BNBUSDT`, `SOLUSDT`, `XRPUSDT`, `DOGEUSDT`

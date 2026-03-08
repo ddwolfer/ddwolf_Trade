@@ -50,7 +50,7 @@ Crypto Backtest Platform 的未來發展藍圖。
 
 ## v0.6 — 實盤橋接
 
-- [ ] **Paper Trading** — 用即時數據模擬交易（不下真單）
+- [x] **Paper Trading** — 用即時數據模擬交易（不下真單）
 - [ ] **Binance API 整合** — 透過 Binance Skills 下單（需用戶授權）
 - [ ] **風控模組** — 單日最大虧損限制、單筆最大倉位限制
 - [ ] **告警系統** — 策略信號通知（Telegram / Discord / Email）

@@ -44,17 +44,36 @@ crypto-backtest/
 │   │   ├── strategy_engine.py    ← 回測引擎（逐根K棒模擬，含滑點+手續費）
 │   │   ├── backtest_service.py   ← 回測流程調度（可同步/異步執行）
 │   │   └── report_service.py     ← 績效指標 + Plotly 圖表 JSON
-│   └── strategies/
-│       ├── base_strategy.py      ← 策略基底類別（所有策略繼承它）
-│       ├── registry.py           ← 策略自動註冊系統
-│       ├── rsi_strategy.py            ← RSI 超買超賣
-│       ├── macd_strategy.py           ← MACD 交叉
-│       ├── bollinger_strategy.py      ← 布林通道
-│       ├── ma_cross_strategy.py       ← 均線交叉
-│       ├── momentum_strategy.py       ← 動量突破
-│       ├── confluence_strategy.py     ← RSI+MACD 多重確認
-│       ├── supertrend_strategy.py     ← SuperTrend 趨勢跟蹤
-│       └── volume_breakout_strategy.py ← 量價突破
+│   ├── strategies/
+│   │   ├── base_strategy.py      ← 策略基底類別（所有策略繼承它）
+│   │   ├── registry.py           ← 策略自動註冊系統
+│   │   ├── rsi_strategy.py            ← RSI 超買超賣
+│   │   ├── macd_strategy.py           ← MACD 交叉
+│   │   ├── bollinger_strategy.py      ← 布林通道
+│   │   ├── ma_cross_strategy.py       ← 均線交叉
+│   │   ├── momentum_strategy.py       ← 動量突破
+│   │   ├── confluence_strategy.py     ← RSI+MACD 多重確認
+│   │   ├── supertrend_strategy.py     ← SuperTrend 趨勢跟蹤
+│   │   └── volume_breakout_strategy.py ← 量價突破
+│   ├── live/
+│   │   ├── __init__.py
+│   │   ├── models.py                      ← LiveOrder, Position, AccountState, TradingSessionConfig
+│   │   ├── adapters/
+│   │   │   ├── __init__.py
+│   │   │   ├── base_adapter.py            ← ExchangeAdapter ABC
+│   │   │   └── paper_adapter.py           ← PaperTradingAdapter（模擬成交）
+│   │   ├── engine.py                      ← LiveTradingEngine（背景線程主迴圈）
+│   │   ├── persistence.py                 ← SQLite 持久化 CRUD
+│   │   └── session_manager.py             ← 多 session 管理
+│   └── tests/
+│       ├── __init__.py
+│       ├── conftest.py
+│       ├── test_live_models.py
+│       ├── test_paper_adapter.py
+│       ├── test_persistence.py
+│       ├── test_engine.py
+│       ├── test_session_manager.py
+│       └── test_api_paper.py
 └── frontend/
     └── index.html          ← Web UI (暗色主題, Plotly 圖表)
 ```
@@ -110,6 +129,14 @@ python app.py             # http://localhost:8000
 | GET | `/api/reports/{id}/charts` | Plotly JSON 圖表 |
 | GET | `/api/reports/{id}/trades` | 每筆交易明細 |
 | GET | `/api/data/{symbol}` | 取得 K 線數據 |
+| POST | `/api/paper/deploy` | 部署 Paper Trading session |
+| POST | `/api/paper/{id}/stop` | 停止 session |
+| POST | `/api/paper/{id}/close-all` | 緊急平倉所有部位 |
+| GET | `/api/paper` | 列出所有 sessions |
+| GET | `/api/paper/{id}` | 取得 session 狀態 |
+| GET | `/api/paper/{id}/orders` | 取得訂單列表 |
+| GET | `/api/paper/{id}/positions` | 取得持倉列表 |
+| GET | `/api/paper/{id}/equity` | 取得資金曲線 |
 
 ## 開發慣例
 
@@ -138,7 +165,14 @@ python app.py             # http://localhost:8000
 
 ### 測試方式
 
-目前沒有正式測試框架，但可以用 API 做 smoke test：
+使用 pytest 執行單元測試：
+
+```bash
+# 執行所有單元測試
+cd backend && python -m pytest tests/ -v
+```
+
+也可以用 API 做 smoke test：
 
 ```bash
 # 測試所有策略是否能正常執行
@@ -164,6 +198,7 @@ curl -X POST http://localhost:8000/api/backtest/compare \
 4. **合成數據** — 當 Binance API 不可用時自動 fallback，數據是模擬的
 5. **記憶體存儲** — 回測結果存在記憶體，server 重啟後消失
 6. **無認證** — API 完全開放，適合本地使用
+7. **Paper Trading 僅模擬** — 目前 Paper Trading 使用模擬成交引擎，尚未接入真實交易所即時數據
 
 ## 下一步（參考 ROADMAP.md）
 
@@ -172,11 +207,13 @@ curl -X POST http://localhost:8000/api/backtest/compare \
 - [ ] 支援做空
 - [x] 加入更多策略（RSI+MACD Confluence、SuperTrend、Volume Breakout）
 - [x] AI Agent 自動策略研究工作流（`/research` command）
+- [x] Paper Trading — 模擬交易引擎（背景線程、SQLite 持久化、REST API）
 - [ ] 加入更多策略（Grid Trading、DCA、結合聰明錢信號）
 - [ ] 參數優化（grid search / random search）
 - [ ] 持久化結果到 SQLite
 
 中期目標：
+- [ ] 接入真實交易所即時數據（Binance WebSocket）
 - [ ] 接入 Binance Skills Hub 的聰明錢信號和代幣審計
 - [ ] AI Agent 自動策略迭代 loop
-- [ ] 連接 Binance Testnet 做模擬交易
+- [ ] 風控模組（單日最大虧損、單筆最大倉位限制）
