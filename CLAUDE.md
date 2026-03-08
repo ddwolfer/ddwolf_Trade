@@ -190,6 +190,15 @@ curl -X POST http://localhost:8000/api/backtest/compare \
   ]}'
 ```
 
+## 常見陷阱
+
+<!-- 以下由 /lesson-common 自動萃取 — 2026-03-09 -->
+- **[測試]** 本專案未安裝 `pytest-timeout`，不要在 pytest 指令加 `--timeout` flag，會直接報錯
+- **[測試]** 比較 backtest engine 和 live engine 的 PnL 時，兩者的 quantity 計算公式有微小差異（~0.1%），斷言用 `pytest.approx(x, rel=0.02)` 而非精確比對
+- **[Subagent]** 背景 subagent 可能 staged 檔案但未完成 commit — session 完成後務必用 `git status` 和 `git log` 確認，必要時手動補 commit
+- **[Subagent]** 背景 subagent 的 task ID 在 session 切換後失效 — 驗證完成狀態要用 `git log` + `python -m pytest`，不要依賴 `TaskOutput`
+- **[Subagent]** Subagent-driven development 控制 context：每個 subagent 只給檔案路徑 + 前置依賴 + test 清單，不傳整個 conversation history
+
 ## 已知限制
 
 1. **單一倉位** — 同時只能持有一個部位（不支援多倉位或對沖）
