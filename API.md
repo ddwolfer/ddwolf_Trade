@@ -70,6 +70,8 @@ Base URL: `http://localhost:8000/api`
 | `strategy_params` | object | `{}` | 策略參數（不傳則用預設值） |
 | `commission_rate` | number | `0.001` | 手續費率（0.1%） |
 | `slippage_rate` | number | `0.0005` | 滑點率（0.05%） |
+| `stop_loss_pct` | number | `null` | 止損百分比（例如 `0.05` 表示 5% 止損，不設定則不啟用） |
+| `take_profit_pct` | number | `null` | 止盈百分比（例如 `0.1` 表示 10% 止盈，不設定則不啟用） |
 
 **請求範例：**
 
@@ -104,7 +106,9 @@ Base URL: `http://localhost:8000/api`
     "strategy_name": "RSI",
     "strategy_params": {"period": 14, "overbought": 70, "oversold": 30},
     "commission_rate": 0.001,
-    "slippage_rate": 0.0005
+    "slippage_rate": 0.0005,
+    "stop_loss_pct": 0.05,
+    "take_profit_pct": 0.1
   },
   "metrics": {
     "total_trades": 24,
@@ -147,6 +151,9 @@ Base URL: `http://localhost:8000/api`
   "equity_curve": [10000, 10050, 10120, ...],
   "equity_timestamps": [1704067200000, 1704070800000, ...]
 }
+```
+
+> **信號類型說明：** 策略可發出四種信號 — `BUY`（開多倉）、`SELL`（平多倉）、`SHORT`（開空倉）、`COVER`（平空倉）。交易記錄的 `action` 欄位會反映對應信號。若設定了 `stop_loss_pct` 或 `take_profit_pct`，引擎會在觸發時自動平倉，交易記錄中會標註觸發原因。
 ```
 
 ### GET /api/backtest

@@ -102,11 +102,14 @@ python app.py             # http://localhost:8000
 `StrategyEngine.run()` 逐根 K 棒遍歷：
 1. 呼叫策略的 `generate_signal()`
 2. BUY → 開多倉（全倉位，含滑點 0.05% + 手續費 0.1%）
-3. SELL → 平倉
-4. 追蹤資金曲線和回撤
-5. 期末強制平倉
+3. SELL → 平多倉
+4. SHORT → 開空倉（全倉位，含滑點 + 手續費）
+5. COVER → 平空倉
+6. 檢查止損/止盈條件（若設定 `stop_loss_pct` / `take_profit_pct`，觸發時自動平倉）
+7. 追蹤資金曲線和回撤
+8. 期末強制平倉
 
-目前是**單一倉位**模式（同時只持有一個部位）。
+支援 **LONG**（做多）和 **SHORT**（做空）兩個方向。目前是**單一倉位**模式（同時只持有一個部位）。
 
 ### 數據管線
 
@@ -202,19 +205,17 @@ curl -X POST http://localhost:8000/api/backtest/compare \
 ## 已知限制
 
 1. **單一倉位** — 同時只能持有一個部位（不支援多倉位或對沖）
-2. **只做多** — 目前只有 LONG 方向（沒有做空邏輯）
-3. **無止損/止盈** — 策略信號控制全部進出場
-4. **合成數據** — 當 Binance API 不可用時自動 fallback，數據是模擬的
-5. **記憶體存儲** — 回測結果存在記憶體，server 重啟後消失
-6. **無認證** — API 完全開放，適合本地使用
-7. **Paper Trading 僅模擬** — 目前 Paper Trading 使用模擬成交引擎，尚未接入真實交易所即時數據
+2. **合成數據** — 當 Binance API 不可用時自動 fallback，數據是模擬的
+3. **記憶體存儲** — 回測結果存在記憶體，server 重啟後消失
+4. **無認證** — API 完全開放，適合本地使用
+5. **Paper Trading 僅模擬** — 目前 Paper Trading 使用模擬成交引擎，尚未接入真實交易所即時數據
 
 ## 下一步（參考 ROADMAP.md）
 
 短期優先：
-- [ ] 加入止損/止盈機制（高優先 — 槓桿的前提）
+- [x] 加入止損/止盈機制（固定比例止損/止盈，透過 `stop_loss_pct` / `take_profit_pct` 設定）
 - [ ] 槓桿支援（合約交易 2x~10x）
-- [ ] 支援做空
+- [x] 支援做空（SHORT/COVER 信號，回測引擎完整支援空倉邏輯）
 - [x] 加入更多策略（RSI+MACD Confluence、SuperTrend、Volume Breakout）
 - [x] AI Agent 自動策略研究工作流（`/research` command）
 - [x] Paper Trading — 模擬交易引擎（背景線程、SQLite 持久化、REST API）
