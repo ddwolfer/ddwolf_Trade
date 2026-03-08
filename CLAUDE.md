@@ -201,6 +201,12 @@ curl -X POST http://localhost:8000/api/backtest/compare \
 - **[Subagent]** 背景 subagent 可能 staged 檔案但未完成 commit — session 完成後務必用 `git status` 和 `git log` 確認，必要時手動補 commit
 - **[Subagent]** 背景 subagent 的 task ID 在 session 切換後失效 — 驗證完成狀態要用 `git log` + `python -m pytest`，不要依賴 `TaskOutput`
 - **[Subagent]** Subagent-driven development 控制 context：每個 subagent 只給檔案路徑 + 前置依賴 + test 清單，不傳整個 conversation history
+- **[引擎]** SL/TP 檢查必須在 signal generation 之前執行（主迴圈順序：SL/TP → signal → process → equity），延後檢查會讓風控滯後一根 K 棒
+- **[引擎]** SHORT 止損方向與 LONG 相反：LONG SL 用 `candle.low ≤ entry*(1-sl%)`，SHORT SL 用 `candle.high ≥ entry*(1+sl%)`
+- **[引擎]** 策略反轉（LONG↔SHORT）必須先平倉再開新倉 — 單一倉位架構不允許同時持有多空
+- **[Paper Adapter]** SHORT 倉位的 equity 計算：`position_value = unrealized_pnl`（不是 `qty * price`），`total_equity = cash + unrealized_pnl`
+- **[前端]** 單一 index.html 新增 UI 區塊時，用 CSS `display` toggle + JS mode 變數切換，不要建新頁面
+- **[策略]** 新增信號類型（SHORT/COVER）時保持向後相容 — 舊策略只發 BUY/SELL 仍正常運作，引擎僅在收到新信號類型時才執行新邏輯
 
 ## 已知限制
 
