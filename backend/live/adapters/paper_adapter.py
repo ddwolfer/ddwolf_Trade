@@ -4,6 +4,8 @@ Paper Trading Adapter — simulates exchange order execution in-memory.
 Implements the ExchangeAdapter interface with simulated fills that match
 the backtest engine's commission and slippage logic. All state is
 protected by a threading.Lock for safe concurrent access.
+
+Supports both LONG and SHORT positions.
 """
 import threading
 import time
@@ -20,6 +22,12 @@ class PaperTradingAdapter(ExchangeAdapter):
     Fills MARKET orders instantly with configurable slippage and commission
     rates. Financial calculations mirror the backtest StrategyEngine so
     paper-trading results are directly comparable to backtest results.
+
+    Order sides:
+        BUY         — open LONG or close SHORT
+        SELL        — close LONG
+        SHORT_OPEN  — open SHORT position
+        SHORT_CLOSE — close SHORT position (alias for BUY when SHORT)
     """
 
     def __init__(
@@ -50,10 +58,12 @@ class PaperTradingAdapter(ExchangeAdapter):
         """Update the latest market price and refresh unrealized PnL."""
         with self._lock:
             self._current_prices[symbol] = price
-            # Refresh unrealized PnL on any open position for this symbol
             pos = self._positions.get(symbol)
             if pos is not None and pos.status == "OPEN":
-                pos.unrealized_pnl = (price - pos.entry_price) * pos.quantity
+                if pos.side == "LONG":
+                    pos.unrealized_pnl = (price - pos.entry_price) * pos.quantity
+                else:  # SHORT
+                    pos.unrealized_pnl = (pos.entry_price - price) * pos.quantity
 
     def get_current_price(self, symbol: str) -> float:
         """Return the last-set price for *symbol*."""
@@ -76,18 +86,7 @@ class PaperTradingAdapter(ExchangeAdapter):
         """
         Place and immediately fill a MARKET order.
 
-        BUY fill logic:
-            fill_price  = current_price * (1 + slippage_rate)
-            cost        = fill_price * quantity
-            commission  = cost * commission_rate
-            total_cost  = cost + commission
-            If total_cost > cash, quantity is adjusted down.
-
-        SELL fill logic:
-            fill_price  = current_price * (1 - slippage_rate)
-            proceeds    = fill_price * sell_qty
-            commission  = proceeds * commission_rate
-            pnl         = (fill_price - entry_price) * sell_qty - commission
+        Supported sides: BUY, SELL, SHORT_OPEN, SHORT_CLOSE
         """
         with self._lock:
             now_ms = int(time.time() * 1000)
@@ -104,10 +103,20 @@ class PaperTradingAdapter(ExchangeAdapter):
                 reason=reason,
             )
 
-            if side.upper() == "BUY":
-                order = self._fill_buy(order, now_ms)
-            elif side.upper() == "SELL":
+            side_upper = side.upper()
+            if side_upper == "BUY":
+                # Check if there's a SHORT position to close first
+                pos = self._positions.get(symbol)
+                if pos is not None and pos.status == "OPEN" and pos.side == "SHORT":
+                    order = self._fill_short_close(order, now_ms)
+                else:
+                    order = self._fill_buy(order, now_ms)
+            elif side_upper == "SELL":
                 order = self._fill_sell(order, now_ms)
+            elif side_upper == "SHORT_OPEN":
+                order = self._fill_short_open(order, now_ms)
+            elif side_upper == "SHORT_CLOSE":
+                order = self._fill_short_close(order, now_ms)
             else:
                 order.status = "REJECTED"
                 order.reason = f"Unknown side: {side}"
@@ -120,10 +129,9 @@ class PaperTradingAdapter(ExchangeAdapter):
     # ------------------------------------------------------------------
 
     def _fill_buy(self, order: LiveOrder, now_ms: int) -> LiveOrder:
-        """Execute a MARKET BUY order."""
+        """Execute a MARKET BUY order (open LONG)."""
         symbol = order.symbol
 
-        # Reject if no price feed
         current_price = self._current_prices.get(symbol)
         if current_price is None:
             order.status = "REJECTED"
@@ -149,20 +157,18 @@ class PaperTradingAdapter(ExchangeAdapter):
             order.reason = "Insufficient funds"
             return order
 
-        # Deduct from cash
         self._cash -= total_cost
 
         # Create or update position
         existing_pos = self._positions.get(symbol)
-        if existing_pos is not None and existing_pos.status == "OPEN":
-            # Average into existing position
+        if existing_pos is not None and existing_pos.status == "OPEN" and existing_pos.side == "LONG":
+            # Average into existing LONG position
             old_qty = existing_pos.quantity
             new_qty = old_qty + quantity
             existing_pos.entry_price = (
                 (existing_pos.entry_price * old_qty + fill_price * quantity) / new_qty
             )
             existing_pos.quantity = new_qty
-            # Refresh unrealized PnL
             existing_pos.unrealized_pnl = (
                 (current_price - existing_pos.entry_price) * existing_pos.quantity
             )
@@ -180,7 +186,6 @@ class PaperTradingAdapter(ExchangeAdapter):
             )
             self._positions[symbol] = pos
 
-        # Fill the order
         order.status = "FILLED"
         order.filled_quantity = quantity
         order.avg_fill_price = fill_price
@@ -189,13 +194,13 @@ class PaperTradingAdapter(ExchangeAdapter):
         return order
 
     def _fill_sell(self, order: LiveOrder, now_ms: int) -> LiveOrder:
-        """Execute a MARKET SELL order."""
+        """Execute a MARKET SELL order (close LONG)."""
         symbol = order.symbol
 
         pos = self._positions.get(symbol)
-        if pos is None or pos.status != "OPEN":
+        if pos is None or pos.status != "OPEN" or pos.side != "LONG":
             order.status = "REJECTED"
-            order.reason = "No open position to sell"
+            order.reason = "No open LONG position to sell"
             return order
 
         current_price = self._current_prices.get(symbol)
@@ -210,17 +215,13 @@ class PaperTradingAdapter(ExchangeAdapter):
         commission = proceeds * self.commission_rate
         net_proceeds = proceeds - commission
 
-        # PnL matches backtest engine:
-        # pnl = (fill_price - entry_price) * sell_qty - commission
         pnl = (fill_price - pos.entry_price) * sell_qty - commission
 
         self._cash += net_proceeds
         self._realized_pnl += pnl
 
-        # Close or reduce position
         remaining_qty = pos.quantity - sell_qty
         if remaining_qty <= 1e-12:
-            # Fully closed
             pos.status = "CLOSED"
             pos.exit_price = fill_price
             pos.exit_time = now_ms
@@ -231,13 +232,108 @@ class PaperTradingAdapter(ExchangeAdapter):
             self._closed_positions.append(pos)
             del self._positions[symbol]
         else:
-            # Partial close
             pos.quantity = remaining_qty
             pos.unrealized_pnl = (current_price - pos.entry_price) * remaining_qty
 
-        # Fill the order
         order.status = "FILLED"
         order.filled_quantity = sell_qty
+        order.avg_fill_price = fill_price
+        order.commission = commission
+        order.filled_time = now_ms
+        return order
+
+    def _fill_short_open(self, order: LiveOrder, now_ms: int) -> LiveOrder:
+        """Execute a SHORT_OPEN order (open SHORT position)."""
+        symbol = order.symbol
+
+        current_price = self._current_prices.get(symbol)
+        if current_price is None:
+            order.status = "REJECTED"
+            order.reason = "No current price for symbol"
+            return order
+
+        # SHORT: sell borrowed asset at slippage-adjusted price
+        fill_price = current_price * (1 - self.slippage_rate)
+        quantity = order.quantity
+        commission = fill_price * quantity * self.commission_rate
+
+        # Adjust quantity if commission exceeds available cash
+        if commission > self._cash:
+            order.status = "REJECTED"
+            order.reason = "Insufficient funds for commission"
+            return order
+
+        self._cash -= commission
+
+        pos = Position(
+            session_id=self.session_id,
+            symbol=symbol,
+            side="SHORT",
+            quantity=quantity,
+            entry_price=fill_price,
+            entry_time=now_ms,
+            status="OPEN",
+            entry_order_id=order.order_id,
+            unrealized_pnl=(fill_price - current_price) * quantity,
+        )
+        self._positions[symbol] = pos
+
+        order.status = "FILLED"
+        order.filled_quantity = quantity
+        order.avg_fill_price = fill_price
+        order.commission = commission
+        order.filled_time = now_ms
+        return order
+
+    def _fill_short_close(self, order: LiveOrder, now_ms: int) -> LiveOrder:
+        """Execute a SHORT_CLOSE order (close SHORT position by buying back)."""
+        symbol = order.symbol
+
+        pos = self._positions.get(symbol)
+        if pos is None or pos.status != "OPEN" or pos.side != "SHORT":
+            order.status = "REJECTED"
+            order.reason = "No open SHORT position to cover"
+            return order
+
+        current_price = self._current_prices.get(symbol)
+        if current_price is None:
+            order.status = "REJECTED"
+            order.reason = "No current price for symbol"
+            return order
+
+        cover_qty = min(order.quantity, pos.quantity)
+        # Buy back at worse price (slippage up)
+        fill_price = current_price * (1 + self.slippage_rate)
+        buy_cost = fill_price * cover_qty
+        commission = buy_cost * self.commission_rate
+
+        # PnL = (entry - exit) * qty - commission
+        pnl = (pos.entry_price - fill_price) * cover_qty - commission
+
+        # Cash adjustment: we sold at entry, now buy back
+        # Net cash change = entry_proceeds - buy_cost - commission
+        # But entry proceeds were not added to cash (SHORT model: cash stays as margin)
+        # So: cash += pnl (the net effect)
+        self._cash += pnl
+        self._realized_pnl += pnl
+
+        remaining_qty = pos.quantity - cover_qty
+        if remaining_qty <= 1e-12:
+            pos.status = "CLOSED"
+            pos.exit_price = fill_price
+            pos.exit_time = now_ms
+            pos.exit_order_id = order.order_id
+            pos.realized_pnl = pnl
+            pos.unrealized_pnl = 0.0
+            pos.quantity = 0.0
+            self._closed_positions.append(pos)
+            del self._positions[symbol]
+        else:
+            pos.quantity = remaining_qty
+            pos.unrealized_pnl = (pos.entry_price - current_price) * remaining_qty
+
+        order.status = "FILLED"
+        order.filled_quantity = cover_qty
         order.avg_fill_price = fill_price
         order.commission = commission
         order.filled_time = now_ms
@@ -300,7 +396,10 @@ class PaperTradingAdapter(ExchangeAdapter):
                 if pos.status == "OPEN":
                     unrealized += pos.unrealized_pnl
                     price = self._current_prices.get(pos.symbol, pos.entry_price)
-                    position_value += pos.quantity * price
+                    if pos.side == "LONG":
+                        position_value += pos.quantity * price
+                    else:  # SHORT: value is the unrealized PnL
+                        position_value += pos.unrealized_pnl
 
             total_equity = self._cash + position_value
             return AccountState(
@@ -319,9 +418,8 @@ class PaperTradingAdapter(ExchangeAdapter):
     def close_all_positions(self, reason: str = "Manual close") -> List[LiveOrder]:
         """Close every open position at market."""
         with self._lock:
-            # Snapshot symbols + quantities before mutating
             to_close = [
-                (sym, pos.quantity)
+                (sym, pos.quantity, pos.side)
                 for sym, pos in self._positions.items()
                 if pos.status == "OPEN"
             ]
@@ -330,7 +428,10 @@ class PaperTradingAdapter(ExchangeAdapter):
             return []
 
         orders: List[LiveOrder] = []
-        for sym, qty in to_close:
-            order = self.place_order(sym, "SELL", "MARKET", qty, reason=reason)
+        for sym, qty, side in to_close:
+            if side == "LONG":
+                order = self.place_order(sym, "SELL", "MARKET", qty, reason=reason)
+            else:  # SHORT
+                order = self.place_order(sym, "SHORT_CLOSE", "MARKET", qty, reason=reason)
             orders.append(order)
         return orders

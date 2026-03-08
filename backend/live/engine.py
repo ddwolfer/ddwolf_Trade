@@ -6,6 +6,7 @@ For Phase 1-2, "real-time" means:
   2. Polling mode: fetch latest candle from Binance REST every interval
 
 The engine runs in a background daemon thread.
+Supports LONG and SHORT positions, with optional stop-loss/take-profit.
 """
 import threading
 import time
@@ -206,44 +207,110 @@ class LiveTradingEngine:
     # ------------------------------------------------------------------
 
     def _process_signal(self, signal: TradeSignal, candle: Candle) -> None:
-        """Translate a strategy signal into an adapter order."""
+        """Translate a strategy signal into adapter orders."""
         position = self.adapter.get_position(self.config.symbol)
 
-        if signal.signal_type == "BUY" and position is None:
-            account = self.adapter.get_account_state()
-            price = self.adapter.get_current_price(self.config.symbol)
-            if price <= 0:
-                return
-            quantity = account.available_cash / price
+        if signal.signal_type == "BUY":
+            if position is None:
+                # Open LONG
+                self._open_long(signal)
+            elif position.side == "SHORT":
+                # Close SHORT
+                self._close_short(position, signal)
 
-            order = self.adapter.place_order(
-                symbol=self.config.symbol,
-                side="BUY",
-                order_type="MARKET",
-                quantity=quantity,
-                reason=signal.reason,
-            )
-            self.persistence.save_order(order)
-            logger.info(
-                f"[{self.session_id}] BUY {order.filled_quantity:.6f} "
-                f"{self.config.symbol} @ {order.avg_fill_price:.2f} "
-                f"| {signal.reason}"
-            )
+        elif signal.signal_type == "SELL":
+            if position is not None and position.side == "LONG":
+                # Close LONG
+                self._close_long(position, signal)
 
-        elif signal.signal_type == "SELL" and position is not None:
-            order = self.adapter.place_order(
-                symbol=self.config.symbol,
-                side="SELL",
-                order_type="MARKET",
-                quantity=position.quantity,
-                reason=signal.reason,
-            )
-            self.persistence.save_order(order)
-            logger.info(
-                f"[{self.session_id}] SELL {order.filled_quantity:.6f} "
-                f"{self.config.symbol} @ {order.avg_fill_price:.2f} "
-                f"| PnL: {position.realized_pnl:.2f} | {signal.reason}"
-            )
+        elif signal.signal_type == "SHORT":
+            if position is not None and position.side == "LONG":
+                # Close LONG first
+                self._close_long(position, signal)
+            if self.adapter.get_position(self.config.symbol) is None:
+                # Open SHORT
+                self._open_short(signal)
+
+        elif signal.signal_type == "COVER":
+            if position is not None and position.side == "SHORT":
+                # Close SHORT
+                self._close_short(position, signal)
+
+    def _open_long(self, signal: TradeSignal) -> None:
+        """Open a LONG position."""
+        account = self.adapter.get_account_state()
+        price = self.adapter.get_current_price(self.config.symbol)
+        if price <= 0:
+            return
+        quantity = account.available_cash / price
+
+        order = self.adapter.place_order(
+            symbol=self.config.symbol,
+            side="BUY",
+            order_type="MARKET",
+            quantity=quantity,
+            reason=signal.reason,
+        )
+        self.persistence.save_order(order)
+        logger.info(
+            f"[{self.session_id}] BUY {order.filled_quantity:.6f} "
+            f"{self.config.symbol} @ {order.avg_fill_price:.2f} "
+            f"| {signal.reason}"
+        )
+
+    def _close_long(self, position, signal: TradeSignal) -> None:
+        """Close a LONG position."""
+        order = self.adapter.place_order(
+            symbol=self.config.symbol,
+            side="SELL",
+            order_type="MARKET",
+            quantity=position.quantity,
+            reason=signal.reason,
+        )
+        self.persistence.save_order(order)
+        logger.info(
+            f"[{self.session_id}] SELL {order.filled_quantity:.6f} "
+            f"{self.config.symbol} @ {order.avg_fill_price:.2f} "
+            f"| PnL: {position.realized_pnl:.2f} | {signal.reason}"
+        )
+
+    def _open_short(self, signal: TradeSignal) -> None:
+        """Open a SHORT position."""
+        account = self.adapter.get_account_state()
+        price = self.adapter.get_current_price(self.config.symbol)
+        if price <= 0:
+            return
+        quantity = account.available_cash / price
+
+        order = self.adapter.place_order(
+            symbol=self.config.symbol,
+            side="SHORT_OPEN",
+            order_type="MARKET",
+            quantity=quantity,
+            reason=signal.reason,
+        )
+        self.persistence.save_order(order)
+        logger.info(
+            f"[{self.session_id}] SHORT {order.filled_quantity:.6f} "
+            f"{self.config.symbol} @ {order.avg_fill_price:.2f} "
+            f"| {signal.reason}"
+        )
+
+    def _close_short(self, position, signal: TradeSignal) -> None:
+        """Close a SHORT position."""
+        order = self.adapter.place_order(
+            symbol=self.config.symbol,
+            side="SHORT_CLOSE",
+            order_type="MARKET",
+            quantity=position.quantity,
+            reason=signal.reason,
+        )
+        self.persistence.save_order(order)
+        logger.info(
+            f"[{self.session_id}] COVER {order.filled_quantity:.6f} "
+            f"{self.config.symbol} @ {order.avg_fill_price:.2f} "
+            f"| PnL: {position.realized_pnl:.2f} | {signal.reason}"
+        )
 
     # ------------------------------------------------------------------
     # Helpers

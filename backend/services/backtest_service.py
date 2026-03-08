@@ -45,7 +45,9 @@ def run_backtest(config: BacktestConfig) -> BacktestResult:
             slippage_rate=config.slippage_rate,
         )
         trades, equity_curve, equity_timestamps = engine.run(
-            ohlcv, strategy, config.initial_capital
+            ohlcv, strategy, config.initial_capital,
+            stop_loss_pct=config.stop_loss_pct,
+            take_profit_pct=config.take_profit_pct,
         )
 
         # 4. Calculate metrics

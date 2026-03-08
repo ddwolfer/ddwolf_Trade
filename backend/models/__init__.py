@@ -59,6 +59,7 @@ class Trade:
     profit_loss: float = 0.0
     return_pct: float = 0.0
     status: str = "OPEN"  # OPEN or CLOSED
+    exit_type: str = "SIGNAL"  # SIGNAL, STOP_LOSS, TAKE_PROFIT, FORCED_CLOSE
     entry_reason: str = ""
     exit_reason: str = ""
 
@@ -82,6 +83,8 @@ class BacktestConfig:
     strategy_params: Dict[str, Any] = field(default_factory=dict)
     commission_rate: float = 0.001  # 0.1%
     slippage_rate: float = 0.0005  # 0.05%
+    stop_loss_pct: float = 0.0  # 0 = disabled. e.g. 5.0 = exit if price moves 5% against position
+    take_profit_pct: float = 0.0  # 0 = disabled. e.g. 10.0 = exit if price moves 10% in favor
 
 
 @dataclass

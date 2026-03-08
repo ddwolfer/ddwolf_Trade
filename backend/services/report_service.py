@@ -68,6 +68,15 @@ def calculate_metrics(trades: List[Trade], equity_curve: List[float],
 
     final_equity = float(equity_curve[-1])
 
+    # Exit type and side breakdowns
+    long_trades = [t for t in closed if t.side == "LONG"]
+    short_trades = [t for t in closed if t.side == "SHORT"]
+    sl_exits = len([t for t in closed if t.exit_type == "STOP_LOSS"])
+    tp_exits = len([t for t in closed if t.exit_type == "TAKE_PROFIT"])
+    signal_exits = len([t for t in closed if t.exit_type == "SIGNAL"])
+    long_winners = [t for t in long_trades if t.profit_loss > 0]
+    short_winners = [t for t in short_trades if t.profit_loss > 0]
+
     return {
         "total_trades": len(closed),
         "winning_trades": len(winners),
@@ -88,6 +97,15 @@ def calculate_metrics(trades: List[Trade], equity_curve: List[float],
         "max_consecutive_losses": max_consec_loss,
         "avg_holding_hours": round(np.mean(holding_hours), 1) if holding_hours else 0,
         "monthly_returns": monthly_returns,
+        # Position side breakdown
+        "long_trades": len(long_trades),
+        "short_trades": len(short_trades),
+        "long_win_rate": round(len(long_winners) / len(long_trades) * 100, 2) if long_trades else 0,
+        "short_win_rate": round(len(short_winners) / len(short_trades) * 100, 2) if short_trades else 0,
+        # Exit type breakdown
+        "signal_exits": signal_exits,
+        "sl_exits": sl_exits,
+        "tp_exits": tp_exits,
     }
 
 
@@ -153,19 +171,64 @@ def generate_charts(ohlcv: OHLCVData, trades: List[Trade],
         }
     }
 
-    # K-line with trade markers
-    buy_times = []
-    buy_prices = []
-    sell_times = []
-    sell_prices = []
+    # K-line with trade markers (LONG/SHORT entries + signal/SL/TP exits)
+    long_entry_times, long_entry_prices = [], []
+    short_entry_times, short_entry_prices = [], []
+    signal_exit_times, signal_exit_prices = [], []
+    sl_exit_times, sl_exit_prices = [], []
+    tp_exit_times, tp_exit_prices = [], []
+
     for t in trades:
-        bt = datetime.fromtimestamp(t.entry_time / 1000).strftime("%Y-%m-%d %H:%M")
-        buy_times.append(bt)
-        buy_prices.append(t.entry_price)
+        entry_str = datetime.fromtimestamp(t.entry_time / 1000).strftime("%Y-%m-%d %H:%M")
+        if t.side == "LONG":
+            long_entry_times.append(entry_str)
+            long_entry_prices.append(t.entry_price)
+        else:
+            short_entry_times.append(entry_str)
+            short_entry_prices.append(t.entry_price)
+
         if t.exit_time:
-            st = datetime.fromtimestamp(t.exit_time / 1000).strftime("%Y-%m-%d %H:%M")
-            sell_times.append(st)
-            sell_prices.append(t.exit_price)
+            exit_str = datetime.fromtimestamp(t.exit_time / 1000).strftime("%Y-%m-%d %H:%M")
+            if t.exit_type == "STOP_LOSS":
+                sl_exit_times.append(exit_str)
+                sl_exit_prices.append(t.exit_price)
+            elif t.exit_type == "TAKE_PROFIT":
+                tp_exit_times.append(exit_str)
+                tp_exit_prices.append(t.exit_price)
+            else:
+                signal_exit_times.append(exit_str)
+                signal_exit_prices.append(t.exit_price)
+
+    trade_markers = [
+        {
+            "x": long_entry_times, "y": long_entry_prices,
+            "type": "scatter", "mode": "markers", "name": "Buy (Long)",
+            "marker": {"symbol": "triangle-up", "size": 12, "color": "#00e676"}
+        },
+        {
+            "x": signal_exit_times, "y": signal_exit_prices,
+            "type": "scatter", "mode": "markers", "name": "Sell (Signal)",
+            "marker": {"symbol": "triangle-down", "size": 12, "color": "#ff1744"}
+        },
+    ]
+    if short_entry_times:
+        trade_markers.append({
+            "x": short_entry_times, "y": short_entry_prices,
+            "type": "scatter", "mode": "markers", "name": "Short Entry",
+            "marker": {"symbol": "triangle-down", "size": 12, "color": "#ff9800"}
+        })
+    if sl_exit_times:
+        trade_markers.append({
+            "x": sl_exit_times, "y": sl_exit_prices,
+            "type": "scatter", "mode": "markers", "name": "Stop Loss",
+            "marker": {"symbol": "x", "size": 10, "color": "#f44336"}
+        })
+    if tp_exit_times:
+        trade_markers.append({
+            "x": tp_exit_times, "y": tp_exit_prices,
+            "type": "scatter", "mode": "markers", "name": "Take Profit",
+            "marker": {"symbol": "star", "size": 10, "color": "#4caf50"}
+        })
 
     kline_chart = {
         "data": [
@@ -180,23 +243,7 @@ def generate_charts(ohlcv: OHLCVData, trades: List[Trade],
                 "increasing": {"line": {"color": "#26a69a"}},
                 "decreasing": {"line": {"color": "#ef5350"}},
             },
-            {
-                "x": buy_times,
-                "y": buy_prices,
-                "type": "scatter",
-                "mode": "markers",
-                "name": "Buy",
-                "marker": {"symbol": "triangle-up", "size": 12, "color": "#00e676"}
-            },
-            {
-                "x": sell_times,
-                "y": sell_prices,
-                "type": "scatter",
-                "mode": "markers",
-                "name": "Sell",
-                "marker": {"symbol": "triangle-down", "size": 12, "color": "#ff1744"}
-            },
-        ],
+        ] + trade_markers,
         "layout": {
             "title": f"{ohlcv.symbol} - Trades",
             "xaxis": {"title": "Date", "rangeslider": {"visible": False}},

@@ -238,6 +238,8 @@ class BacktestHandler(SimpleHTTPRequestHandler):
                     strategy_params=data.get("strategy_params", {}),
                     commission_rate=float(data.get("commission_rate", 0.001)),
                     slippage_rate=float(data.get("slippage_rate", 0.0005)),
+                    stop_loss_pct=float(data.get("stop_loss_pct", 0)),
+                    take_profit_pct=float(data.get("take_profit_pct", 0)),
                 )
 
                 # Run synchronously for simplicity (most backtests are fast)
@@ -261,6 +263,8 @@ class BacktestHandler(SimpleHTTPRequestHandler):
                         initial_capital=float(cfg_data.get("initial_capital", 10000)),
                         strategy_name=cfg_data.get("strategy_name", "RSI"),
                         strategy_params=cfg_data.get("strategy_params", {}),
+                        stop_loss_pct=float(cfg_data.get("stop_loss_pct", 0)),
+                        take_profit_pct=float(cfg_data.get("take_profit_pct", 0)),
                     )
                     result = backtest_service.run_backtest(config)
                     results.append({
