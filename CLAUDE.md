@@ -33,7 +33,8 @@ crypto-backtest/
 │   └── commands/          ← 自訂 slash commands
 │       ├── backtest.md
 │       ├── add-strategy.md
-│       └── optimize.md
+│       ├── optimize.md
+│       └── research.md       ← AI 自動策略研究工作流
 ├── backend/
 │   ├── app.py             ← HTTP Server 入口 (port 8000)
 │   ├── models/__init__.py ← 資料模型 (Candle, Trade, BacktestConfig, BacktestResult)
@@ -46,11 +47,14 @@ crypto-backtest/
 │   └── strategies/
 │       ├── base_strategy.py      ← 策略基底類別（所有策略繼承它）
 │       ├── registry.py           ← 策略自動註冊系統
-│       ├── rsi_strategy.py       ← RSI 超買超賣
-│       ├── macd_strategy.py      ← MACD 交叉
-│       ├── bollinger_strategy.py ← 布林通道
-│       ├── ma_cross_strategy.py  ← 均線交叉
-│       └── momentum_strategy.py  ← 動量突破
+│       ├── rsi_strategy.py            ← RSI 超買超賣
+│       ├── macd_strategy.py           ← MACD 交叉
+│       ├── bollinger_strategy.py      ← 布林通道
+│       ├── ma_cross_strategy.py       ← 均線交叉
+│       ├── momentum_strategy.py       ← 動量突破
+│       ├── confluence_strategy.py     ← RSI+MACD 多重確認
+│       ├── supertrend_strategy.py     ← SuperTrend 趨勢跟蹤
+│       └── volume_breakout_strategy.py ← 量價突破
 └── frontend/
     └── index.html          ← Web UI (暗色主題, Plotly 圖表)
 ```
@@ -119,6 +123,12 @@ python app.py             # http://localhost:8000
 
 詳細範例見 `CONTRIBUTING.md`。
 
+### Git 工作流
+
+- **每次完成一個動作後都要 commit + push**
+- Commit message 用英文，簡潔描述變更
+- 加上 `Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>`
+
 ### 程式碼風格
 
 - 型別提示：所有函式都用 type hints
@@ -139,7 +149,10 @@ curl -X POST http://localhost:8000/api/backtest/compare \
     {"symbol":"BTCUSDT","strategy_name":"MACD"},
     {"symbol":"BTCUSDT","strategy_name":"Bollinger Bands"},
     {"symbol":"BTCUSDT","strategy_name":"MA Cross"},
-    {"symbol":"BTCUSDT","strategy_name":"Momentum Breakout"}
+    {"symbol":"BTCUSDT","strategy_name":"Momentum Breakout"},
+    {"symbol":"BTCUSDT","strategy_name":"RSI+MACD Confluence"},
+    {"symbol":"BTCUSDT","strategy_name":"SuperTrend"},
+    {"symbol":"BTCUSDT","strategy_name":"Volume Breakout"}
   ]}'
 ```
 
@@ -157,6 +170,8 @@ curl -X POST http://localhost:8000/api/backtest/compare \
 短期優先：
 - [ ] 加入止損/止盈機制
 - [ ] 支援做空
+- [x] 加入更多策略（RSI+MACD Confluence、SuperTrend、Volume Breakout）
+- [x] AI Agent 自動策略研究工作流（`/research` command）
 - [ ] 加入更多策略（Grid Trading、DCA、結合聰明錢信號）
 - [ ] 參數優化（grid search / random search）
 - [ ] 持久化結果到 SQLite
