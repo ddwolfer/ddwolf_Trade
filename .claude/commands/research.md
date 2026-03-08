@@ -30,6 +30,7 @@
 1. 對所有現有策略跑回測（用 `/api/backtest/compare`）
 2. 記錄 baseline 指標表格（報酬、夏普、回撤、勝率、交易數）
 3. 計算 Buy & Hold 基準：用 `/api/data/{SYMBOL}` 取得首尾價格算漲跌幅
+4. 計算 DCA 基準（Weekly + Monthly）：用同樣的 K 線數據模擬定投
 
 ### Phase 3: 策略研究
 1. 根據 baseline 結果分析不足之處（例如：回撤太大、勝率太低、信號太少）
@@ -77,15 +78,55 @@
 | OOS 衰退 | < 50% |
 | 勝率 | > 40% |
 
-### Phase 8: 最終報告
-輸出包含：
+### Phase 8: 最終報告 + 存檔
+
+#### 8a. 更新策略預設參數
+將最佳參數寫入策略檔案的 `metadata()` 的 `default` 值，這樣 UI 選策略時自動帶入。
+
+#### 8b. 儲存研究報告
+將完整報告寫入 `docs/research/YYYY-MM-DD-{strategy-name}.md`，格式如下：
+```markdown
+# Research Report: {Strategy Name}
+- **Date:** YYYY-MM-DD
+- **Symbol:** {SYMBOL}
+- **Interval:** {INTERVAL}
+- **Period:** {START} ~ {END}
+- **Status:** PASSED / FAILED
+
+## Strategy Logic
+（進出場邏輯描述）
+
+## Optimized Parameters
+（JSON 格式的最佳參數）
+
+## Performance (Full Period)
+（Return, Win Rate, PF, Sharpe, MaxDD, Trades）
+
+## Benchmark Comparison
+（vs Buy & Hold, DCA Weekly, DCA Monthly, 其他策略）
+
+## Walk-Forward Validation
+（IS vs OOS, Decay rate）
+
+## Quality Gates
+（每項門檻通過/失敗）
+
+## Confidence: High / Medium-High / Medium / Low
+
+## Known Limitations
+
+## Grid Search Top 5
+```
+
+#### 8c. 最終輸出
+在對話中輸出簡潔的結論摘要，包含：
 1. 策略名稱和邏輯描述
 2. 最佳參數組合
 3. 完整績效指標（含 IS 和 OOS）
-4. 與所有現有策略的比較表
-5. Buy & Hold 基準比較
-6. 信心評級（高/中/低）和使用建議
-7. 已知限制和適用行情類型
+4. 與所有現有策略 + DCA + Buy & Hold 的比較表
+5. 信心評級（高/中/低）和使用建議
+6. 已知限制和適用行情類型
+7. 報告存檔路徑
 
 ## 注意事項
 - 每次 compare API 最多放 20 個 config
@@ -94,3 +135,9 @@
 - 新策略用 `self.cache_indicator()` 快取指標
 - 指標計算用 `services/indicator_service.py` 裡的函式
 - 每個 Phase 完成後都要 commit + push
+- DCA 基準計算方式：Weekly（每 168 根 1h K 棒投入等額）、Monthly（每 720 根）
+- 報告存檔路徑：`docs/research/YYYY-MM-DD-{strategy-name}.md`
+- 最佳參數同時更新到策略檔案的 `metadata()` default 值，確保 UI 預設就是最佳參數
+
+## 現有研究報告
+- `docs/research/2026-03-09-trend-rider.md` — Trend Rider (+68%, beats DCA)
