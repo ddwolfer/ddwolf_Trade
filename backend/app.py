@@ -20,7 +20,7 @@ from services.report_service import generate_charts
 from services.data_service import fetch_klines
 
 # Import strategies to trigger registration
-from strategies import rsi_strategy, macd_strategy, bollinger_strategy, ma_cross_strategy, momentum_strategy, confluence_strategy, supertrend_strategy, volume_breakout_strategy, trend_rider_strategy
+from strategies import rsi_strategy, macd_strategy, bollinger_strategy, ma_cross_strategy, momentum_strategy, confluence_strategy, supertrend_strategy, volume_breakout_strategy, trend_rider_strategy, bear_hunter_strategy
 from strategies.registry import StrategyRegistry
 
 # Live/paper trading
