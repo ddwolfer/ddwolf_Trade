@@ -23,6 +23,12 @@ from services.data_service import fetch_klines
 from strategies import rsi_strategy, macd_strategy, bollinger_strategy, ma_cross_strategy, momentum_strategy, confluence_strategy, supertrend_strategy, volume_breakout_strategy
 from strategies.registry import StrategyRegistry
 
+# Live/paper trading
+from live.session_manager import SessionManager
+from live.models import TradingSessionConfig
+
+_session_manager = SessionManager()
+
 
 class BacktestHandler(SimpleHTTPRequestHandler):
     """HTTP handler for both API and static files."""
@@ -169,6 +175,44 @@ class BacktestHandler(SimpleHTTPRequestHandler):
                 "candles": [c.to_dict() for c in candles]
             })
 
+        # GET /api/paper — List all paper trading sessions
+        elif path == "/api/paper" or path == "/api/paper/":
+            sessions = _session_manager.list_sessions()
+            self._send_json({"sessions": sessions})
+
+        # GET /api/paper/{id}/orders
+        elif path.startswith("/api/paper/") and path.endswith("/orders"):
+            parts = path.split("/")
+            session_id = parts[3]
+            orders = _session_manager.get_orders(session_id)
+            self._send_json({"orders": orders})
+
+        # GET /api/paper/{id}/positions
+        elif path.startswith("/api/paper/") and path.endswith("/positions"):
+            parts = path.split("/")
+            session_id = parts[3]
+            positions = _session_manager.get_positions(session_id)
+            self._send_json({"positions": positions})
+
+        # GET /api/paper/{id}/equity
+        elif path.startswith("/api/paper/") and path.endswith("/equity"):
+            parts = path.split("/")
+            session_id = parts[3]
+            curve = _session_manager.get_equity_curve(session_id)
+            self._send_json(curve)
+
+        # GET /api/paper/{id} — Get session status (must be after sub-resource routes)
+        elif path.startswith("/api/paper/") and path.count("/") == 3:
+            session_id = path.split("/")[3]
+            if session_id:
+                try:
+                    status = _session_manager.get_status(session_id)
+                    self._send_json(status)
+                except ValueError as e:
+                    self._send_json({"error": str(e)}, 404)
+            else:
+                self._send_json({"error": "Missing session ID"}, 400)
+
         else:
             self._send_json({"error": "Unknown endpoint"}, 404)
 
@@ -222,6 +266,47 @@ class BacktestHandler(SimpleHTTPRequestHandler):
                 self._send_json({"results": results})
             except Exception as e:
                 self._send_json({"error": str(e)}, 400)
+
+        # POST /api/paper/deploy — Start paper trading session
+        elif path == "/api/paper/deploy" or path == "/api/paper/deploy/":
+            try:
+                config = TradingSessionConfig(
+                    symbol=data.get("symbol", "BTCUSDT"),
+                    interval=data.get("interval", "1h"),
+                    strategy_name=data.get("strategy_name", "RSI"),
+                    strategy_params=data.get("strategy_params", {}),
+                    initial_capital=float(data.get("initial_capital", 10000)),
+                    commission_rate=float(data.get("commission_rate", 0.001)),
+                    slippage_rate=float(data.get("slippage_rate", 0.0005)),
+                    data_start_date=data.get("data_start_date", "2024-01-01"),
+                    data_end_date=data.get("data_end_date", "2025-01-01"),
+                    tick_interval_seconds=float(data.get("tick_interval_seconds", 1.0)),
+                    mode=data.get("mode", "simulated"),
+                )
+                result = _session_manager.deploy(config)
+                self._send_json(result)
+            except Exception as e:
+                self._send_json({"error": str(e)}, 400)
+
+        # POST /api/paper/{id}/stop — Stop session
+        elif path.startswith("/api/paper/") and path.endswith("/stop"):
+            parts = path.split("/")
+            session_id = parts[3]
+            try:
+                result = _session_manager.stop_session(session_id)
+                self._send_json(result)
+            except ValueError as e:
+                self._send_json({"error": str(e)}, 404)
+
+        # POST /api/paper/{id}/close-all — Emergency close positions
+        elif path.startswith("/api/paper/") and path.endswith("/close-all"):
+            parts = path.split("/")
+            session_id = parts[3]
+            try:
+                orders = _session_manager.close_all_positions(session_id)
+                self._send_json({"orders": orders})
+            except ValueError as e:
+                self._send_json({"error": str(e)}, 404)
 
         else:
             self._send_json({"error": "Unknown endpoint"}, 404)
