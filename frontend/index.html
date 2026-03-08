@@ -19,7 +19,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 /* Sidebar */
 .sidebar { background:var(--bg2); border-right:1px solid var(--border); padding:20px; overflow-y:auto; }
 .sidebar h1 { font-size:20px; margin-bottom:4px; color:var(--blue); }
-.sidebar .subtitle { font-size:12px; color:var(--text2); margin-bottom:20px; }
+.sidebar .subtitle { font-size:12px; color:var(--text2); margin-bottom:12px; }
 .form-group { margin-bottom:16px; }
 .form-group label { display:block; font-size:13px; color:var(--text2); margin-bottom:4px; font-weight:500; }
 .form-group select, .form-group input {
@@ -45,6 +45,79 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .status.running { background:rgba(88,166,255,0.15); color:var(--blue); }
 .status.completed { background:rgba(63,185,80,0.15); color:var(--green); }
 .status.error { background:rgba(248,81,73,0.15); color:var(--red); }
+
+/* Mode Toggle */
+.mode-toggle {
+  display:flex; background:var(--bg3); border-radius:8px; padding:3px;
+  margin-bottom:16px; border:1px solid var(--border);
+}
+.mode-toggle button {
+  flex:1; padding:8px 12px; border:none; border-radius:6px; font-size:13px;
+  font-weight:600; cursor:pointer; transition:all .2s;
+  background:transparent; color:var(--text2);
+}
+.mode-toggle button.active {
+  background:var(--blue); color:#fff;
+}
+.mode-toggle button:not(.active):hover {
+  color:var(--text);
+}
+
+/* Paper Trading Sidebar Controls */
+.paper-controls { display:none; }
+.paper-controls.visible { display:block; }
+
+.slider-group { margin-bottom:16px; }
+.slider-group label { display:block; font-size:13px; color:var(--text2); margin-bottom:4px; font-weight:500; }
+.slider-group input[type="range"] {
+  width:100%; height:6px; -webkit-appearance:none; appearance:none;
+  background:var(--bg3); border-radius:3px; outline:none; margin-top:6px;
+}
+.slider-group input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance:none; appearance:none; width:16px; height:16px;
+  border-radius:50%; background:var(--blue); cursor:pointer; border:2px solid var(--bg2);
+}
+.slider-group input[type="range"]::-moz-range-thumb {
+  width:16px; height:16px; border-radius:50%; background:var(--blue);
+  cursor:pointer; border:2px solid var(--bg2);
+}
+.slider-value {
+  display:inline-block; font-size:12px; color:var(--blue); font-weight:600;
+  margin-left:8px;
+}
+
+.radio-group { margin-bottom:16px; }
+.radio-group label.radio-label {
+  display:inline-flex; align-items:center; gap:6px; margin-right:16px;
+  font-size:13px; color:var(--text); cursor:pointer; font-weight:400;
+}
+.radio-group input[type="radio"] {
+  width:auto; accent-color:var(--blue);
+}
+
+.btn-deploy { background:var(--green); color:#fff; }
+.btn-deploy:hover { background:#56d364; }
+.btn-deploy:disabled { opacity:.5; cursor:not-allowed; }
+.btn-stop { background:var(--red); color:#fff; margin-top:8px; }
+.btn-stop:hover { background:#ff6e6a; }
+.btn-stop:disabled { opacity:.5; cursor:not-allowed; }
+.btn-close-all { background:var(--yellow); color:#000; margin-top:8px; font-size:13px; padding:8px; }
+.btn-close-all:hover { background:#e3b341; }
+.btn-close-all:disabled { opacity:.5; cursor:not-allowed; }
+
+.session-status {
+  margin-top:12px; padding:10px; border-radius:6px; font-size:13px;
+  background:var(--bg3); border:1px solid var(--border);
+}
+.session-status .state-badge {
+  display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px;
+  font-weight:600; text-transform:uppercase; letter-spacing:.5px;
+}
+.state-badge.running { background:rgba(63,185,80,0.2); color:var(--green); }
+.state-badge.completed { background:rgba(88,166,255,0.2); color:var(--blue); }
+.state-badge.stopped { background:rgba(139,148,158,0.2); color:var(--text2); }
+.state-badge.error { background:rgba(248,81,73,0.2); color:var(--red); }
+.session-info { margin-top:8px; font-size:12px; color:var(--text2); line-height:1.6; }
 
 /* Main Content */
 .main { padding:20px; overflow-y:auto; }
@@ -83,6 +156,49 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .section-title { font-size:16px; font-weight:600; margin:20px 0 12px; color:var(--text); }
 .loading { display:inline-block; width:16px; height:16px; border:2px solid var(--border); border-top-color:var(--blue); border-radius:50%; animation:spin 1s linear infinite; }
 @keyframes spin { to { transform:rotate(360deg); } }
+
+/* Paper Trading Results Panel */
+.paper-results { display:none; }
+.paper-results.visible { display:block; }
+
+.paper-empty-state { text-align:center; padding:60px 20px; color:var(--text2); }
+.paper-empty-state h2 { font-size:24px; margin-bottom:8px; color:var(--text); }
+
+.paper-metrics-grid {
+  display:grid; grid-template-columns:repeat(4, 1fr);
+  gap:12px; margin-bottom:20px;
+}
+
+.position-card {
+  background:var(--bg2); border:1px solid var(--border); border-radius:8px;
+  padding:16px; margin-bottom:16px;
+}
+.position-card h4 {
+  font-size:14px; color:var(--text2); margin-bottom:12px;
+  text-transform:uppercase; letter-spacing:.5px; font-weight:500;
+}
+.position-card .no-position {
+  font-size:13px; color:var(--text2); font-style:italic; padding:8px 0;
+}
+.position-details {
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(120px, 1fr));
+  gap:8px;
+}
+.position-detail {
+  padding:8px;
+}
+.position-detail .detail-label {
+  font-size:11px; color:var(--text2); text-transform:uppercase; letter-spacing:.5px;
+}
+.position-detail .detail-value {
+  font-size:16px; font-weight:600; margin-top:2px;
+}
+
+.orders-section { margin-top:16px; }
+.orders-section h4 {
+  font-size:14px; color:var(--text2); margin-bottom:12px;
+  text-transform:uppercase; letter-spacing:.5px; font-weight:500;
+}
 </style>
 </head>
 <body>
@@ -90,6 +206,12 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   <div class="sidebar">
     <h1>Crypto Backtest</h1>
     <p class="subtitle">AI-Powered Strategy Backtesting Platform</p>
+
+    <!-- Mode Toggle -->
+    <div class="mode-toggle">
+      <button id="mode-backtest" class="active" onclick="toggleMode('backtest')">Backtest</button>
+      <button id="mode-paper" onclick="toggleMode('paper')">Paper Trading</button>
+    </div>
 
     <div class="form-group">
       <label>Trading Pair</label>
@@ -145,8 +267,46 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
       </div>
     </div>
 
-    <button class="btn btn-primary" id="run-btn" onclick="runBacktest()">Run Backtest</button>
-    <div id="status"></div>
+    <!-- Backtest Controls -->
+    <div id="backtest-controls">
+      <button class="btn btn-primary" id="run-btn" onclick="runBacktest()">Run Backtest</button>
+      <div id="status"></div>
+    </div>
+
+    <!-- Paper Trading Controls -->
+    <div id="paper-controls" class="paper-controls">
+      <div class="slider-group">
+        <label>Tick Speed <span id="tick-speed-value" class="slider-value">1.0s</span></label>
+        <input type="range" id="tick-interval" min="0" max="2" step="0.1" value="1.0"
+          oninput="document.getElementById('tick-speed-value').textContent = this.value + 's'">
+      </div>
+
+      <div class="radio-group">
+        <label>Mode</label><br>
+        <label class="radio-label">
+          <input type="radio" name="paper-mode" value="simulated" checked> Simulated
+        </label>
+        <label class="radio-label">
+          <input type="radio" name="paper-mode" value="polling"> Polling
+        </label>
+      </div>
+
+      <button class="btn btn-deploy" id="deploy-btn" onclick="deployPaperTrading()">Deploy Paper Trading</button>
+      <button class="btn btn-stop" id="stop-btn" onclick="stopPaperTrading()" disabled>Stop Session</button>
+      <button class="btn btn-close-all" id="close-all-btn" onclick="closeAllPositions()" disabled>Close All Positions</button>
+
+      <div id="session-status-display" style="display:none;">
+        <div class="session-status">
+          <div>
+            Session: <span id="paper-session-id" style="font-weight:600;color:var(--blue);">--</span>
+          </div>
+          <div style="margin-top:4px;">
+            State: <span id="paper-state" class="state-badge stopped">--</span>
+          </div>
+          <div class="session-info" id="paper-session-info"></div>
+        </div>
+      </div>
+    </div>
 
     <div class="history" id="history-section" style="display:none;">
       <h3>History</h3>
@@ -155,16 +315,61 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   </div>
 
   <div class="main" id="main">
-    <div class="empty-state" id="empty-state">
-      <h2>Select a Strategy and Run</h2>
-      <p>Configure your strategy parameters on the left, then click "Run Backtest" to see results.</p>
-      <p style="margin-top:16px;font-size:13px;">
-        <strong>API for Agents:</strong><br>
-        <code style="background:var(--bg3);padding:2px 6px;border-radius:4px;">POST /api/backtest/run</code>
-        <code style="background:var(--bg3);padding:2px 6px;border-radius:4px;">GET /api/strategies</code>
-      </p>
+    <!-- Backtest Main Area -->
+    <div id="backtest-main">
+      <div class="empty-state" id="empty-state">
+        <h2>Select a Strategy and Run</h2>
+        <p>Configure your strategy parameters on the left, then click "Run Backtest" to see results.</p>
+        <p style="margin-top:16px;font-size:13px;">
+          <strong>API for Agents:</strong><br>
+          <code style="background:var(--bg3);padding:2px 6px;border-radius:4px;">POST /api/backtest/run</code>
+          <code style="background:var(--bg3);padding:2px 6px;border-radius:4px;">GET /api/strategies</code>
+        </p>
+      </div>
+      <div id="results" style="display:none;"></div>
     </div>
-    <div id="results" style="display:none;"></div>
+
+    <!-- Paper Trading Main Area -->
+    <div id="paper-main" class="paper-results">
+      <div class="paper-empty-state" id="paper-empty-state">
+        <h2>Paper Trading Mode</h2>
+        <p>Configure your strategy and click "Deploy Paper Trading" to start a simulated trading session.</p>
+        <p style="margin-top:16px;font-size:13px;">
+          <strong>API for Agents:</strong><br>
+          <code style="background:var(--bg3);padding:2px 6px;border-radius:4px;">POST /api/paper/deploy</code>
+          <code style="background:var(--bg3);padding:2px 6px;border-radius:4px;">GET /api/paper/{id}</code>
+        </p>
+      </div>
+      <div id="paper-results-content" style="display:none;">
+        <!-- Account Metrics -->
+        <div id="paper-metrics" class="paper-metrics-grid"></div>
+
+        <!-- Open Positions -->
+        <div id="paper-positions" class="position-card">
+          <h4>Open Positions</h4>
+          <div id="paper-positions-content" class="no-position">No open positions</div>
+        </div>
+
+        <!-- Equity Curve -->
+        <div id="paper-equity-chart" class="chart-container" style="min-height:300px;"></div>
+
+        <!-- Recent Orders -->
+        <div class="orders-section">
+          <h4>Recent Orders</h4>
+          <div class="chart-container" style="overflow-x:auto;">
+            <table class="trades-table" id="paper-orders-table">
+              <thead><tr>
+                <th>Time</th><th>Side</th><th>Quantity</th><th>Price</th>
+                <th>Status</th><th>Commission</th>
+              </tr></thead>
+              <tbody id="paper-orders-body">
+                <tr><td colspan="6" style="text-align:center;color:var(--text2);padding:20px;">No orders yet</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -172,6 +377,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 const API = window.location.origin;
 let strategies = [];
 let backtestHistory = [];
+let currentMode = 'backtest';
+let paperSessionId = null;
+let paperPollingInterval = null;
 
 // Initialize
 async function init() {
@@ -216,6 +424,34 @@ function renderParams(name) {
   });
 }
 
+// === Mode Toggle ===
+function toggleMode(mode) {
+  currentMode = mode;
+
+  // Update toggle buttons
+  document.getElementById('mode-backtest').classList.toggle('active', mode === 'backtest');
+  document.getElementById('mode-paper').classList.toggle('active', mode === 'paper');
+
+  // Toggle sidebar controls
+  document.getElementById('backtest-controls').style.display = mode === 'backtest' ? 'block' : 'none';
+  const paperControls = document.getElementById('paper-controls');
+  paperControls.style.display = mode === 'paper' ? 'block' : 'none';
+  if (mode === 'paper') paperControls.classList.add('visible');
+  else paperControls.classList.remove('visible');
+
+  // Toggle main area
+  document.getElementById('backtest-main').style.display = mode === 'backtest' ? 'block' : 'none';
+  const paperMain = document.getElementById('paper-main');
+  paperMain.style.display = mode === 'paper' ? 'block' : 'none';
+  if (mode === 'paper') paperMain.classList.add('visible');
+  else paperMain.classList.remove('visible');
+
+  // Toggle history (only in backtest mode)
+  document.getElementById('history-section').style.display =
+    (mode === 'backtest' && backtestHistory.length > 0) ? 'block' : 'none';
+}
+
+// === Backtest Functions ===
 async function runBacktest() {
   const btn = document.getElementById('run-btn');
   const statusEl = document.getElementById('status');
@@ -334,15 +570,7 @@ async function loadCharts(backtestId) {
     const resp = await fetch(`${API}/api/reports/${backtestId}/charts`);
     const charts = await resp.json();
 
-    const darkLayout = {
-      paper_bgcolor: '#161b22',
-      plot_bgcolor: '#0d1117',
-      font: { color: '#e6edf3', size: 12 },
-      margin: { l:60, r:20, t:40, b:40 },
-      xaxis: { gridcolor:'#21262d', linecolor:'#30363d' },
-      yaxis: { gridcolor:'#21262d', linecolor:'#30363d' },
-    };
-
+    const darkLayout = getDarkLayout();
     const plotConfig = { responsive: true, displayModeBar: false };
 
     if (charts.equity_chart) {
@@ -366,6 +594,17 @@ async function loadCharts(backtestId) {
   }
 }
 
+function getDarkLayout() {
+  return {
+    paper_bgcolor: '#161b22',
+    plot_bgcolor: '#0d1117',
+    font: { color: '#e6edf3', size: 12 },
+    margin: { l:60, r:20, t:40, b:40 },
+    xaxis: { gridcolor:'#21262d', linecolor:'#30363d' },
+    yaxis: { gridcolor:'#21262d', linecolor:'#30363d' },
+  };
+}
+
 function metricCard(label, value, isPositive) {
   const cls = isPositive === true ? 'positive' : isPositive === false ? 'negative' : '';
   return `<div class="metric-card ${cls}"><div class="label">${label}</div><div class="value">${value ?? '-'}</div></div>`;
@@ -375,7 +614,7 @@ function updateHistory() {
   const section = document.getElementById('history-section');
   const list = document.getElementById('history-list');
   if (backtestHistory.length === 0) { section.style.display='none'; return; }
-  section.style.display = 'block';
+  if (currentMode === 'backtest') section.style.display = 'block';
   list.innerHTML = backtestHistory.slice(0,10).map(r => {
     const m = r.metrics || {};
     const c = r.config || {};
@@ -385,6 +624,349 @@ function updateHistory() {
       <span class="meta" style="color:${color}">${m.total_return_pct||0}%</span>
     </div>`;
   }).join('');
+}
+
+// === Paper Trading Functions ===
+
+function getStrategyParams() {
+  const strategyName = document.getElementById('strategy').value;
+  const strategy = strategies.find(s => s.name === strategyName);
+  const params = {};
+  if (strategy) {
+    Object.keys(strategy.parameters).forEach(key => {
+      const el = document.getElementById(`param-${key}`);
+      if (el) {
+        params[key] = strategy.parameters[key].type === 'int'
+          ? parseInt(el.value) : parseFloat(el.value);
+      }
+    });
+  }
+  return params;
+}
+
+async function deployPaperTrading() {
+  const deployBtn = document.getElementById('deploy-btn');
+  const stopBtn = document.getElementById('stop-btn');
+  const closeAllBtn = document.getElementById('close-all-btn');
+
+  deployBtn.disabled = true;
+  deployBtn.textContent = 'Deploying...';
+
+  const paperMode = document.querySelector('input[name="paper-mode"]:checked').value;
+  const tickInterval = parseFloat(document.getElementById('tick-interval').value);
+
+  const config = {
+    symbol: document.getElementById('symbol').value,
+    interval: document.getElementById('interval').value,
+    start_date: document.getElementById('start-date').value,
+    end_date: document.getElementById('end-date').value,
+    initial_capital: parseFloat(document.getElementById('capital').value),
+    strategy_name: document.getElementById('strategy').value,
+    strategy_params: getStrategyParams(),
+    commission_rate: 0.001,
+    slippage_rate: 0.0005,
+    tick_interval_seconds: tickInterval,
+    mode: paperMode,
+  };
+
+  try {
+    const resp = await fetch(`${API}/api/paper/deploy`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(config),
+    });
+    const result = await resp.json();
+
+    if (result.error) throw new Error(result.error);
+
+    paperSessionId = result.session_id;
+    stopBtn.disabled = false;
+    closeAllBtn.disabled = false;
+
+    // Show session status and results
+    document.getElementById('session-status-display').style.display = 'block';
+    document.getElementById('paper-session-id').textContent = paperSessionId;
+    document.getElementById('paper-empty-state').style.display = 'none';
+    document.getElementById('paper-results-content').style.display = 'block';
+
+    // Start polling
+    startPaperPolling();
+
+    // Initial refresh
+    refreshPaperStatus();
+
+  } catch(e) {
+    console.error('Deploy error:', e);
+    const statusDisplay = document.getElementById('session-status-display');
+    statusDisplay.style.display = 'block';
+    document.getElementById('paper-state').textContent = 'error';
+    document.getElementById('paper-state').className = 'state-badge error';
+    document.getElementById('paper-session-info').textContent = `Error: ${e.message}`;
+  } finally {
+    deployBtn.disabled = false;
+    deployBtn.textContent = 'Deploy Paper Trading';
+  }
+}
+
+async function stopPaperTrading() {
+  if (!paperSessionId) return;
+
+  const stopBtn = document.getElementById('stop-btn');
+  stopBtn.disabled = true;
+  stopBtn.textContent = 'Stopping...';
+
+  try {
+    const resp = await fetch(`${API}/api/paper/${paperSessionId}/stop`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+    });
+    const result = await resp.json();
+
+    if (result.error) throw new Error(result.error);
+
+    stopPaperPolling();
+    refreshPaperStatus();
+
+  } catch(e) {
+    console.error('Stop error:', e);
+  } finally {
+    stopBtn.textContent = 'Stop Session';
+    // Button remains disabled after successful stop
+  }
+}
+
+async function closeAllPositions() {
+  if (!paperSessionId) return;
+
+  const closeBtn = document.getElementById('close-all-btn');
+  closeBtn.disabled = true;
+  closeBtn.textContent = 'Closing...';
+
+  try {
+    const resp = await fetch(`${API}/api/paper/${paperSessionId}/close-all`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+    });
+    const result = await resp.json();
+
+    if (result.error) throw new Error(result.error);
+
+    refreshPaperStatus();
+
+  } catch(e) {
+    console.error('Close all error:', e);
+  } finally {
+    closeBtn.disabled = false;
+    closeBtn.textContent = 'Close All Positions';
+  }
+}
+
+async function refreshPaperStatus() {
+  if (!paperSessionId) return;
+
+  try {
+    // Fetch session status
+    const statusResp = await fetch(`${API}/api/paper/${paperSessionId}`);
+    const status = await statusResp.json();
+
+    if (status.error) throw new Error(status.error);
+
+    // Update sidebar state display
+    updateSessionStatusDisplay(status);
+
+    // Fetch orders for the orders table
+    let orders = [];
+    try {
+      const ordersResp = await fetch(`${API}/api/paper/${paperSessionId}/orders`);
+      const ordersData = await ordersResp.json();
+      orders = ordersData.orders || [];
+    } catch(e) {
+      console.warn('Failed to fetch orders:', e);
+    }
+
+    // Fetch equity curve
+    let equityData = [];
+    try {
+      const equityResp = await fetch(`${API}/api/paper/${paperSessionId}/equity`);
+      const equityResult = await equityResp.json();
+      equityData = equityResult.equity_curve || [];
+    } catch(e) {
+      console.warn('Failed to fetch equity curve:', e);
+    }
+
+    // Display all results
+    displayPaperResults(status, orders);
+    renderPaperEquityCurve(equityData);
+
+    // If session is completed, stopped, or error, stop polling
+    if (status.state === 'completed' || status.state === 'stopped' || status.state === 'error') {
+      stopPaperPolling();
+    }
+
+  } catch(e) {
+    console.error('Refresh error:', e);
+  }
+}
+
+function updateSessionStatusDisplay(status) {
+  const stateEl = document.getElementById('paper-state');
+  stateEl.textContent = status.state || '--';
+  stateEl.className = `state-badge ${status.state || 'stopped'}`;
+
+  const infoEl = document.getElementById('paper-session-info');
+  const config = status.config || {};
+  infoEl.innerHTML = `
+    Strategy: ${config.strategy_name || '--'} | ${config.symbol || '--'}<br>
+    Candles: ${status.candles_processed || 0} | Signals: ${status.signals_generated || 0}
+  `;
+
+  // Update button states
+  const isActive = status.state === 'running';
+  document.getElementById('stop-btn').disabled = !isActive;
+  document.getElementById('close-all-btn').disabled = !isActive;
+  document.getElementById('deploy-btn').disabled = isActive;
+}
+
+function displayPaperResults(status, orders) {
+  const account = status.account || {};
+  const positions = status.open_positions || [];
+
+  // Metrics cards
+  const metricsEl = document.getElementById('paper-metrics');
+  const equity = account.total_equity || 0;
+  const cash = account.available_cash || 0;
+  const unrealized = account.unrealized_pnl || 0;
+  const realized = account.realized_pnl || 0;
+
+  metricsEl.innerHTML = `
+    ${metricCard('Total Equity', '$' + equity.toLocaleString(undefined, {maximumFractionDigits:2}), null)}
+    ${metricCard('Available Cash', '$' + cash.toLocaleString(undefined, {maximumFractionDigits:2}), null)}
+    ${metricCard('Unrealized P&L', '$' + unrealized.toFixed(2), unrealized >= 0)}
+    ${metricCard('Realized P&L', '$' + realized.toFixed(2), realized >= 0)}
+  `;
+
+  // Position info
+  const posContent = document.getElementById('paper-positions-content');
+  if (positions.length === 0) {
+    posContent.innerHTML = '<div class="no-position">No open positions</div>';
+  } else {
+    posContent.innerHTML = positions.map(pos => {
+      const pnlColor = (pos.unrealized_pnl || 0) >= 0 ? 'var(--green)' : 'var(--red)';
+      return `
+        <div class="position-details">
+          <div class="position-detail">
+            <div class="detail-label">Symbol</div>
+            <div class="detail-value">${pos.symbol || '--'}</div>
+          </div>
+          <div class="position-detail">
+            <div class="detail-label">Side</div>
+            <div class="detail-value" style="color:${pos.side === 'LONG' ? 'var(--green)' : 'var(--red)'}">${pos.side || '--'}</div>
+          </div>
+          <div class="position-detail">
+            <div class="detail-label">Quantity</div>
+            <div class="detail-value">${pos.quantity ?? '--'}</div>
+          </div>
+          <div class="position-detail">
+            <div class="detail-label">Entry Price</div>
+            <div class="detail-value">$${(pos.entry_price || 0).toLocaleString(undefined, {maximumFractionDigits:2})}</div>
+          </div>
+          <div class="position-detail">
+            <div class="detail-label">Unrealized P&L</div>
+            <div class="detail-value" style="color:${pnlColor}">$${(pos.unrealized_pnl || 0).toFixed(2)}</div>
+          </div>
+          <div class="position-detail">
+            <div class="detail-label">Status</div>
+            <div class="detail-value">${pos.status || 'OPEN'}</div>
+          </div>
+        </div>
+      `;
+    }).join('<hr style="border:none;border-top:1px solid var(--border);margin:8px 0;">');
+  }
+
+  // Orders table
+  const ordersBody = document.getElementById('paper-orders-body');
+  const recentOrders = orders.slice(-10).reverse();
+  if (recentOrders.length === 0) {
+    ordersBody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text2);padding:20px;">No orders yet</td></tr>';
+  } else {
+    ordersBody.innerHTML = recentOrders.map(order => {
+      const sideColor = (order.side === 'BUY') ? 'var(--green)' : 'var(--red)';
+      const timeStr = order.timestamp ? new Date(order.timestamp).toLocaleString() :
+                      (order.time || order.created_at || '--');
+      return `
+        <tr>
+          <td style="font-size:11px;">${timeStr}</td>
+          <td style="color:${sideColor};font-weight:600;">${order.side || '--'}</td>
+          <td>${order.quantity ?? '--'}</td>
+          <td>$${(order.price || 0).toLocaleString(undefined, {maximumFractionDigits:2})}</td>
+          <td><span class="tag ${order.status === 'FILLED' ? 'win' : ''}">${order.status || '--'}</span></td>
+          <td style="font-size:12px;color:var(--text2);">${order.commission != null ? '$' + order.commission.toFixed(4) : '--'}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+}
+
+function renderPaperEquityCurve(equityData) {
+  const chartEl = document.getElementById('paper-equity-chart');
+
+  if (!equityData || equityData.length === 0) {
+    // Show empty chart placeholder
+    const darkLayout = getDarkLayout();
+    Plotly.newPlot(chartEl, [], {
+      ...darkLayout,
+      title: { text: 'Equity Curve', font: { color: '#e6edf3', size: 14 } },
+      xaxis: { ...darkLayout.xaxis, title: 'Time' },
+      yaxis: { ...darkLayout.yaxis, title: 'Equity ($)' },
+      annotations: [{
+        text: 'Waiting for data...',
+        xref: 'paper', yref: 'paper',
+        x: 0.5, y: 0.5,
+        showarrow: false,
+        font: { color: '#8b949e', size: 16 }
+      }]
+    }, { responsive: true, displayModeBar: false });
+    return;
+  }
+
+  const timestamps = equityData.map(d => d.timestamp || d.time || d[0]);
+  const equities = equityData.map(d => d.equity || d.total_equity || d[1]);
+
+  const trace = {
+    x: timestamps,
+    y: equities,
+    type: 'scatter',
+    mode: 'lines',
+    name: 'Equity',
+    line: { color: '#58a6ff', width: 2 },
+    fill: 'tozeroy',
+    fillcolor: 'rgba(88, 166, 255, 0.1)',
+  };
+
+  const darkLayout = getDarkLayout();
+  const layout = {
+    ...darkLayout,
+    title: { text: 'Equity Curve', font: { color: '#e6edf3', size: 14 } },
+    xaxis: { ...darkLayout.xaxis, title: 'Time' },
+    yaxis: { ...darkLayout.yaxis, title: 'Equity ($)' },
+    showlegend: false,
+  };
+
+  Plotly.newPlot(chartEl, [trace], layout, { responsive: true, displayModeBar: false });
+}
+
+function startPaperPolling() {
+  stopPaperPolling();
+  paperPollingInterval = setInterval(() => {
+    refreshPaperStatus();
+  }, 2000);
+}
+
+function stopPaperPolling() {
+  if (paperPollingInterval) {
+    clearInterval(paperPollingInterval);
+    paperPollingInterval = null;
+  }
 }
 
 // Start
