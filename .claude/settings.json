@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python*)",
+      "Bash(pip install*)",
+      "Bash(curl*localhost*)",
+      "Bash(kill*)",
+      "Bash(lsof*)",
+      "Bash(ls*)",
+      "Bash(cat*)"
+    ]
+  },
+  "env": {
+    "PYTHONPATH": "./backend"
+  }
+}

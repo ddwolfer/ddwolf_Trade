@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crypto Backtest Platform</title>
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<style>
+:root {
+  --bg: #0d1117; --bg2: #161b22; --bg3: #21262d;
+  --border: #30363d; --text: #e6edf3; --text2: #8b949e;
+  --blue: #58a6ff; --green: #3fb950; --red: #f85149;
+  --yellow: #d29922; --purple: #bc8cff;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background:var(--bg); color:var(--text); }
+.app { display:grid; grid-template-columns:340px 1fr; min-height:100vh; }
+
+/* Sidebar */
+.sidebar { background:var(--bg2); border-right:1px solid var(--border); padding:20px; overflow-y:auto; }
+.sidebar h1 { font-size:20px; margin-bottom:4px; color:var(--blue); }
+.sidebar .subtitle { font-size:12px; color:var(--text2); margin-bottom:20px; }
+.form-group { margin-bottom:16px; }
+.form-group label { display:block; font-size:13px; color:var(--text2); margin-bottom:4px; font-weight:500; }
+.form-group select, .form-group input {
+  width:100%; padding:8px 10px; background:var(--bg3); border:1px solid var(--border);
+  border-radius:6px; color:var(--text); font-size:14px; outline:none;
+}
+.form-group select:focus, .form-group input:focus { border-color:var(--blue); }
+.form-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.params-grid { display:grid; gap:8px; }
+.param-item { display:flex; justify-content:space-between; align-items:center; padding:6px 0; }
+.param-item label { font-size:12px; color:var(--text2); flex:1; }
+.param-item input { width:80px; text-align:right; padding:4px 8px; }
+.btn {
+  width:100%; padding:12px; border:none; border-radius:8px; font-size:15px;
+  font-weight:600; cursor:pointer; transition:all .2s;
+}
+.btn-primary { background:var(--blue); color:#fff; }
+.btn-primary:hover { background:#79c0ff; }
+.btn-primary:disabled { opacity:.5; cursor:not-allowed; }
+.btn-compare { background:var(--purple); color:#fff; margin-top:8px; }
+.btn-compare:hover { background:#d2a8ff; }
+.status { margin-top:12px; padding:10px; border-radius:6px; font-size:13px; text-align:center; }
+.status.running { background:rgba(88,166,255,0.15); color:var(--blue); }
+.status.completed { background:rgba(63,185,80,0.15); color:var(--green); }
+.status.error { background:rgba(248,81,73,0.15); color:var(--red); }
+
+/* Main Content */
+.main { padding:20px; overflow-y:auto; }
+.metrics-grid {
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr));
+  gap:12px; margin-bottom:20px;
+}
+.metric-card {
+  background:var(--bg2); border:1px solid var(--border); border-radius:8px;
+  padding:14px; text-align:center;
+}
+.metric-card .value { font-size:22px; font-weight:700; margin:4px 0; }
+.metric-card .label { font-size:11px; color:var(--text2); text-transform:uppercase; letter-spacing:.5px; }
+.metric-card.positive .value { color:var(--green); }
+.metric-card.negative .value { color:var(--red); }
+.chart-container { background:var(--bg2); border:1px solid var(--border); border-radius:8px; margin-bottom:16px; overflow:hidden; }
+.trades-table { width:100%; border-collapse:collapse; font-size:13px; }
+.trades-table th { background:var(--bg3); padding:10px 12px; text-align:left; color:var(--text2); font-weight:500; font-size:11px; text-transform:uppercase; }
+.trades-table td { padding:8px 12px; border-bottom:1px solid var(--border); }
+.trades-table tr:hover { background:var(--bg3); }
+.tag { display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:600; }
+.tag.win { background:rgba(63,185,80,0.2); color:var(--green); }
+.tag.loss { background:rgba(248,81,73,0.2); color:var(--red); }
+
+/* History */
+.history { margin-top:20px; border-top:1px solid var(--border); padding-top:16px; }
+.history h3 { font-size:14px; color:var(--text2); margin-bottom:8px; }
+.history-item {
+  padding:8px 10px; background:var(--bg3); border-radius:6px; margin-bottom:6px;
+  cursor:pointer; font-size:12px; display:flex; justify-content:space-between; align-items:center;
+}
+.history-item:hover { border:1px solid var(--blue); }
+.history-item .meta { color:var(--text2); }
+.empty-state { text-align:center; padding:60px 20px; color:var(--text2); }
+.empty-state h2 { font-size:24px; margin-bottom:8px; color:var(--text); }
+.section-title { font-size:16px; font-weight:600; margin:20px 0 12px; color:var(--text); }
+.loading { display:inline-block; width:16px; height:16px; border:2px solid var(--border); border-top-color:var(--blue); border-radius:50%; animation:spin 1s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="sidebar">
+    <h1>Crypto Backtest</h1>
+    <p class="subtitle">AI-Powered Strategy Backtesting Platform</p>
+
+    <div class="form-group">
+      <label>Trading Pair</label>
+      <select id="symbol">
+        <option value="BTCUSDT" selected>BTC/USDT</option>
+        <option value="ETHUSDT">ETH/USDT</option>
+        <option value="BNBUSDT">BNB/USDT</option>
+        <option value="SOLUSDT">SOL/USDT</option>
+        <option value="XRPUSDT">XRP/USDT</option>
+        <option value="DOGEUSDT">DOGE/USDT</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Strategy</label>
+      <select id="strategy"></select>
+    </div>
+
+    <div class="form-group">
+      <label>Strategy Description</label>
+      <p id="strategy-desc" style="font-size:12px;color:var(--text2);padding:4px 0;"></p>
+    </div>
+
+    <div class="form-group">
+      <label>Parameters</label>
+      <div id="params" class="params-grid"></div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Interval</label>
+        <select id="interval">
+          <option value="15m">15m</option>
+          <option value="1h" selected>1h</option>
+          <option value="4h">4h</option>
+          <option value="1d">1d</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Capital (USD)</label>
+        <input type="number" id="capital" value="10000" min="100">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Start Date</label>
+        <input type="date" id="start-date" value="2024-01-01">
+      </div>
+      <div class="form-group">
+        <label>End Date</label>
+        <input type="date" id="end-date" value="2025-01-01">
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="run-btn" onclick="runBacktest()">Run Backtest</button>
+    <div id="status"></div>
+
+    <div class="history" id="history-section" style="display:none;">
+      <h3>History</h3>
+      <div id="history-list"></div>
+    </div>
+  </div>
+
+  <div class="main" id="main">
+    <div class="empty-state" id="empty-state">
+      <h2>Select a Strategy and Run</h2>
+      <p>Configure your strategy parameters on the left, then click "Run Backtest" to see results.</p>
+      <p style="margin-top:16px;font-size:13px;">
+        <strong>API for Agents:</strong><br>
+        <code style="background:var(--bg3);padding:2px 6px;border-radius:4px;">POST /api/backtest/run</code>
+        <code style="background:var(--bg3);padding:2px 6px;border-radius:4px;">GET /api/strategies</code>
+      </p>
+    </div>
+    <div id="results" style="display:none;"></div>
+  </div>
+</div>
+
+<script>
+const API = window.location.origin;
+let strategies = [];
+let backtestHistory = [];
+
+// Initialize
+async function init() {
+  try {
+    const resp = await fetch(`${API}/api/strategies`);
+    const data = await resp.json();
+    strategies = data.strategies || [];
+    renderStrategies();
+  } catch(e) {
+    console.error('Failed to load strategies:', e);
+  }
+}
+
+function renderStrategies() {
+  const sel = document.getElementById('strategy');
+  sel.innerHTML = strategies.map(s =>
+    `<option value="${s.name}">${s.name} (${s.category})</option>`
+  ).join('');
+  sel.addEventListener('change', () => renderParams(sel.value));
+  if (strategies.length) renderParams(strategies[0].name);
+}
+
+function renderParams(name) {
+  const strategy = strategies.find(s => s.name === name);
+  if (!strategy) return;
+
+  document.getElementById('strategy-desc').textContent = strategy.description;
+  const container = document.getElementById('params');
+  container.innerHTML = '';
+
+  Object.entries(strategy.parameters).forEach(([key, spec]) => {
+    if (spec.type === 'str') return; // Skip string params for now
+    const div = document.createElement('div');
+    div.className = 'param-item';
+    div.innerHTML = `
+      <label title="${spec.description || ''}">${key}</label>
+      <input type="number" id="param-${key}" value="${spec.default}"
+        min="${spec.min}" max="${spec.max}"
+        step="${spec.type === 'float' ? '0.1' : '1'}">
+    `;
+    container.appendChild(div);
+  });
+}
+
+async function runBacktest() {
+  const btn = document.getElementById('run-btn');
+  const statusEl = document.getElementById('status');
+  btn.disabled = true;
+  btn.textContent = 'Running...';
+  statusEl.innerHTML = '<div class="status running"><span class="loading"></span> Fetching data & running backtest...</div>';
+
+  const strategyName = document.getElementById('strategy').value;
+  const strategy = strategies.find(s => s.name === strategyName);
+  const params = {};
+  if (strategy) {
+    Object.keys(strategy.parameters).forEach(key => {
+      const el = document.getElementById(`param-${key}`);
+      if (el) {
+        params[key] = strategy.parameters[key].type === 'int'
+          ? parseInt(el.value) : parseFloat(el.value);
+      }
+    });
+  }
+
+  const config = {
+    symbol: document.getElementById('symbol').value,
+    interval: document.getElementById('interval').value,
+    start_date: document.getElementById('start-date').value,
+    end_date: document.getElementById('end-date').value,
+    initial_capital: parseFloat(document.getElementById('capital').value),
+    strategy_name: strategyName,
+    strategy_params: params,
+  };
+
+  try {
+    const resp = await fetch(`${API}/api/backtest/run`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(config),
+    });
+    const result = await resp.json();
+
+    if (result.error) throw new Error(result.error);
+    if (result.status === 'error') throw new Error(result.error || 'Backtest failed');
+
+    statusEl.innerHTML = `<div class="status completed">Completed - ${result.metrics?.total_trades || 0} trades</div>`;
+    backtestHistory.unshift(result);
+    displayResults(result);
+    updateHistory();
+
+  } catch(e) {
+    statusEl.innerHTML = `<div class="status error">Error: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Run Backtest';
+  }
+}
+
+function displayResults(result) {
+  document.getElementById('empty-state').style.display = 'none';
+  const container = document.getElementById('results');
+  container.style.display = 'block';
+
+  const m = result.metrics || {};
+  const isPositive = (m.total_return_pct || 0) >= 0;
+
+  container.innerHTML = `
+    <div class="metrics-grid">
+      ${metricCard('Total Return', `${m.total_return_pct}%`, m.total_return_pct >= 0)}
+      ${metricCard('Win Rate', `${m.win_rate}%`, m.win_rate >= 50)}
+      ${metricCard('Profit Factor', m.profit_factor, m.profit_factor >= 1)}
+      ${metricCard('Max Drawdown', `${m.max_drawdown_pct}%`, false)}
+      ${metricCard('Sharpe Ratio', m.sharpe_ratio, m.sharpe_ratio > 0)}
+      ${metricCard('Sortino Ratio', m.sortino_ratio, m.sortino_ratio > 0)}
+      ${metricCard('Total Trades', m.total_trades, null)}
+      ${metricCard('Avg Win', `${m.avg_win_pct}%`, true)}
+      ${metricCard('Avg Loss', `${m.avg_loss_pct}%`, false)}
+      ${metricCard('Max Consec Loss', m.max_consecutive_losses, null)}
+      ${metricCard('Avg Hold (hrs)', m.avg_holding_hours, null)}
+      ${metricCard('Final Equity', `$${(m.final_equity||0).toLocaleString()}`, m.total_return_pct >= 0)}
+    </div>
+
+    <div id="chart-equity" class="chart-container"></div>
+    <div id="chart-kline" class="chart-container"></div>
+    <div id="chart-drawdown" class="chart-container"></div>
+    <div id="chart-monthly" class="chart-container"></div>
+
+    <h3 class="section-title">Trade Log (${(result.trades||[]).length} trades)</h3>
+    <div class="chart-container" style="overflow-x:auto;">
+      <table class="trades-table">
+        <thead><tr>
+          <th>#</th><th>Entry</th><th>Exit</th><th>Entry Price</th><th>Exit Price</th>
+          <th>Return</th><th>P&L</th><th>Hold (hrs)</th><th>Reason</th>
+        </tr></thead>
+        <tbody>
+          ${(result.trades||[]).map((t,i) => `
+            <tr>
+              <td>${i+1}</td>
+              <td>${t.entry_time_str||'-'}</td>
+              <td>${t.exit_time_str||'-'}</td>
+              <td>$${t.entry_price?.toLocaleString(undefined,{maximumFractionDigits:2})}</td>
+              <td>$${t.exit_price?.toLocaleString(undefined,{maximumFractionDigits:2})}</td>
+              <td><span class="tag ${t.return_pct>=0?'win':'loss'}">${t.return_pct?.toFixed(2)}%</span></td>
+              <td style="color:${t.profit_loss>=0?'var(--green)':'var(--red)'}">$${t.profit_loss?.toFixed(2)}</td>
+              <td>${t.holding_hours?.toFixed(1)||'-'}</td>
+              <td style="font-size:11px;color:var(--text2)">${t.entry_reason||''}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  // Render charts
+  loadCharts(result.id);
+}
+
+async function loadCharts(backtestId) {
+  try {
+    const resp = await fetch(`${API}/api/reports/${backtestId}/charts`);
+    const charts = await resp.json();
+
+    const darkLayout = {
+      paper_bgcolor: '#161b22',
+      plot_bgcolor: '#0d1117',
+      font: { color: '#e6edf3', size: 12 },
+      margin: { l:60, r:20, t:40, b:40 },
+      xaxis: { gridcolor:'#21262d', linecolor:'#30363d' },
+      yaxis: { gridcolor:'#21262d', linecolor:'#30363d' },
+    };
+
+    const plotConfig = { responsive: true, displayModeBar: false };
+
+    if (charts.equity_chart) {
+      const layout = {...darkLayout, ...charts.equity_chart.layout};
+      Plotly.newPlot('chart-equity', charts.equity_chart.data, layout, plotConfig);
+    }
+    if (charts.kline_chart) {
+      const layout = {...darkLayout, ...charts.kline_chart.layout};
+      Plotly.newPlot('chart-kline', charts.kline_chart.data, layout, plotConfig);
+    }
+    if (charts.drawdown_chart) {
+      const layout = {...darkLayout, ...charts.drawdown_chart.layout};
+      Plotly.newPlot('chart-drawdown', charts.drawdown_chart.data, layout, plotConfig);
+    }
+    if (charts.monthly_chart) {
+      const layout = {...darkLayout, ...charts.monthly_chart.layout};
+      Plotly.newPlot('chart-monthly', charts.monthly_chart.data, layout, plotConfig);
+    }
+  } catch(e) {
+    console.error('Failed to load charts:', e);
+  }
+}
+
+function metricCard(label, value, isPositive) {
+  const cls = isPositive === true ? 'positive' : isPositive === false ? 'negative' : '';
+  return `<div class="metric-card ${cls}"><div class="label">${label}</div><div class="value">${value ?? '-'}</div></div>`;
+}
+
+function updateHistory() {
+  const section = document.getElementById('history-section');
+  const list = document.getElementById('history-list');
+  if (backtestHistory.length === 0) { section.style.display='none'; return; }
+  section.style.display = 'block';
+  list.innerHTML = backtestHistory.slice(0,10).map(r => {
+    const m = r.metrics || {};
+    const c = r.config || {};
+    const color = (m.total_return_pct||0) >= 0 ? 'var(--green)' : 'var(--red)';
+    return `<div class="history-item" onclick='displayResults(${JSON.stringify(r).replace(/'/g,"\\'")})'>
+      <span>${c.strategy_name} | ${c.symbol}</span>
+      <span class="meta" style="color:${color}">${m.total_return_pct||0}%</span>
+    </div>`;
+  }).join('');
+}
+
+// Start
+init();
+</script>
+</body>
+</html>

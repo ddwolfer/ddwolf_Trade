@@ -1,0 +1,170 @@
+"""
+Technical Indicator Service
+All indicators calculated with pure numpy/pandas - no external TA library needed.
+"""
+import numpy as np
+from typing import List, Tuple, Optional
+
+
+def sma(data: List[float], period: int) -> List[Optional[float]]:
+    """Simple Moving Average."""
+    result = [None] * len(data)
+    arr = np.array(data, dtype=float)
+    for i in range(period - 1, len(arr)):
+        result[i] = float(np.mean(arr[i - period + 1:i + 1]))
+    return result
+
+
+def ema(data: List[float], period: int) -> List[Optional[float]]:
+    """Exponential Moving Average."""
+    result = [None] * len(data)
+    if len(data) < period:
+        return result
+    arr = np.array(data, dtype=float)
+    multiplier = 2.0 / (period + 1)
+    # Start with SMA
+    result[period - 1] = float(np.mean(arr[:period]))
+    for i in range(period, len(arr)):
+        result[i] = arr[i] * multiplier + result[i - 1] * (1 - multiplier)
+    return result
+
+
+def rsi(data: List[float], period: int = 14) -> List[Optional[float]]:
+    """Relative Strength Index."""
+    result = [None] * len(data)
+    if len(data) < period + 1:
+        return result
+
+    arr = np.array(data, dtype=float)
+    deltas = np.diff(arr)
+    gains = np.where(deltas > 0, deltas, 0.0)
+    losses = np.where(deltas < 0, -deltas, 0.0)
+
+    avg_gain = np.mean(gains[:period])
+    avg_loss = np.mean(losses[:period])
+
+    if avg_loss == 0:
+        result[period] = 100.0
+    else:
+        rs = avg_gain / avg_loss
+        result[period] = 100.0 - (100.0 / (1.0 + rs))
+
+    for i in range(period, len(deltas)):
+        avg_gain = (avg_gain * (period - 1) + gains[i]) / period
+        avg_loss = (avg_loss * (period - 1) + losses[i]) / period
+        if avg_loss == 0:
+            result[i + 1] = 100.0
+        else:
+            rs = avg_gain / avg_loss
+            result[i + 1] = 100.0 - (100.0 / (1.0 + rs))
+
+    return result
+
+
+def macd(data: List[float], fast: int = 12, slow: int = 26,
+         signal_period: int = 9) -> Tuple[List[Optional[float]], List[Optional[float]], List[Optional[float]]]:
+    """
+    MACD: Moving Average Convergence Divergence.
+    Returns: (macd_line, signal_line, histogram)
+    """
+    fast_ema = ema(data, fast)
+    slow_ema = ema(data, slow)
+
+    macd_line = [None] * len(data)
+    for i in range(len(data)):
+        if fast_ema[i] is not None and slow_ema[i] is not None:
+            macd_line[i] = fast_ema[i] - slow_ema[i]
+
+    # Signal line = EMA of MACD line
+    macd_values = [v if v is not None else 0.0 for v in macd_line]
+    signal_line = [None] * len(data)
+
+    # Find first valid MACD index
+    first_valid = next((i for i, v in enumerate(macd_line) if v is not None), None)
+    if first_valid is not None:
+        valid_macd = [macd_line[i] for i in range(first_valid, len(data)) if macd_line[i] is not None]
+        if len(valid_macd) >= signal_period:
+            sig = ema(valid_macd, signal_period)
+            offset = first_valid
+            for i, v in enumerate(sig):
+                if v is not None and offset + i < len(data):
+                    signal_line[offset + i] = v
+
+    histogram = [None] * len(data)
+    for i in range(len(data)):
+        if macd_line[i] is not None and signal_line[i] is not None:
+            histogram[i] = macd_line[i] - signal_line[i]
+
+    return macd_line, signal_line, histogram
+
+
+def bollinger_bands(data: List[float], period: int = 20,
+                    std_dev: float = 2.0) -> Tuple[List[Optional[float]], List[Optional[float]], List[Optional[float]]]:
+    """
+    Bollinger Bands.
+    Returns: (upper_band, middle_band, lower_band)
+    """
+    middle = sma(data, period)
+    upper = [None] * len(data)
+    lower = [None] * len(data)
+    arr = np.array(data, dtype=float)
+
+    for i in range(period - 1, len(arr)):
+        std = float(np.std(arr[i - period + 1:i + 1]))
+        if middle[i] is not None:
+            upper[i] = middle[i] + std_dev * std
+            lower[i] = middle[i] - std_dev * std
+
+    return upper, middle, lower
+
+
+def atr(highs: List[float], lows: List[float], closes: List[float],
+        period: int = 14) -> List[Optional[float]]:
+    """Average True Range."""
+    result = [None] * len(closes)
+    if len(closes) < 2:
+        return result
+
+    true_ranges = [highs[0] - lows[0]]
+    for i in range(1, len(closes)):
+        tr = max(
+            highs[i] - lows[i],
+            abs(highs[i] - closes[i - 1]),
+            abs(lows[i] - closes[i - 1])
+        )
+        true_ranges.append(tr)
+
+    if len(true_ranges) < period:
+        return result
+
+    # First ATR is SMA
+    result[period - 1] = float(np.mean(true_ranges[:period]))
+    for i in range(period, len(true_ranges)):
+        result[i] = (result[i - 1] * (period - 1) + true_ranges[i]) / period
+
+    return result
+
+
+def stochastic(highs: List[float], lows: List[float], closes: List[float],
+               k_period: int = 14, d_period: int = 3) -> Tuple[List[Optional[float]], List[Optional[float]]]:
+    """Stochastic Oscillator. Returns (%K, %D)."""
+    k_values = [None] * len(closes)
+
+    for i in range(k_period - 1, len(closes)):
+        h = max(highs[i - k_period + 1:i + 1])
+        l = min(lows[i - k_period + 1:i + 1])
+        if h != l:
+            k_values[i] = ((closes[i] - l) / (h - l)) * 100
+        else:
+            k_values[i] = 50.0
+
+    # %D = SMA of %K
+    d_values = [None] * len(closes)
+    valid_k = [(i, v) for i, v in enumerate(k_values) if v is not None]
+    if len(valid_k) >= d_period:
+        for j in range(d_period - 1, len(valid_k)):
+            idx = valid_k[j][0]
+            vals = [valid_k[j - d_period + 1 + k][1] for k in range(d_period)]
+            d_values[idx] = float(np.mean(vals))
+
+    return k_values, d_values
