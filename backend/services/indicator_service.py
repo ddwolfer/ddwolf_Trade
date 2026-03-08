@@ -168,3 +168,57 @@ def stochastic(highs: List[float], lows: List[float], closes: List[float],
             d_values[idx] = float(np.mean(vals))
 
     return k_values, d_values
+
+
+def supertrend(highs: List[float], lows: List[float], closes: List[float],
+               atr_period: int = 10, multiplier: float = 3.0) -> Tuple[List[Optional[float]], List[int]]:
+    """
+    SuperTrend indicator.
+    Returns: (supertrend_values, direction)
+      - supertrend_values: the SuperTrend line price
+      - direction: 1 = bullish (uptrend), -1 = bearish (downtrend)
+    """
+    n = len(closes)
+    atr_values = atr(highs, lows, closes, atr_period)
+
+    st_values = [None] * n
+    direction = [0] * n
+    upper_band = [0.0] * n
+    lower_band = [0.0] * n
+
+    for i in range(atr_period, n):
+        if atr_values[i] is None:
+            continue
+
+        hl2 = (highs[i] + lows[i]) / 2.0
+        upper_band[i] = hl2 + multiplier * atr_values[i]
+        lower_band[i] = hl2 - multiplier * atr_values[i]
+
+        if i == atr_period:
+            direction[i] = 1 if closes[i] > upper_band[i] else -1
+            st_values[i] = lower_band[i] if direction[i] == 1 else upper_band[i]
+            continue
+
+        # Ratchet bands: only tighten, never widen against the trend
+        if lower_band[i] < lower_band[i - 1] and closes[i - 1] > lower_band[i - 1]:
+            lower_band[i] = lower_band[i - 1]
+        if upper_band[i] > upper_band[i - 1] and closes[i - 1] < upper_band[i - 1]:
+            upper_band[i] = upper_band[i - 1]
+
+        # Determine direction
+        if direction[i - 1] == 1:
+            if closes[i] < lower_band[i]:
+                direction[i] = -1
+                st_values[i] = upper_band[i]
+            else:
+                direction[i] = 1
+                st_values[i] = lower_band[i]
+        else:
+            if closes[i] > upper_band[i]:
+                direction[i] = 1
+                st_values[i] = lower_band[i]
+            else:
+                direction[i] = -1
+                st_values[i] = upper_band[i]
+
+    return st_values, direction
