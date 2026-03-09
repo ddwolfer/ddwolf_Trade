@@ -46,6 +46,7 @@ class TradeSignal:
     signal_type: str  # "BUY" or "SELL"
     price: float
     reason: str = ""
+    leverage: Optional[float] = None  # Strategy-suggested leverage (None = use Assessor)
 
 
 @dataclass
@@ -62,6 +63,10 @@ class Trade:
     exit_type: str = "SIGNAL"  # SIGNAL, STOP_LOSS, TAKE_PROFIT, FORCED_CLOSE
     entry_reason: str = ""
     exit_reason: str = ""
+    leverage: float = 1.0            # Actual leverage used
+    margin_used: float = 0.0         # Margin amount locked
+    liquidation_price: float = 0.0   # Forced liquidation price
+    funding_paid: float = 0.0        # Cumulative funding paid
 
     def to_dict(self):
         d = asdict(self)
@@ -87,6 +92,12 @@ class BacktestConfig:
     take_profit_pct: float = 0.0  # 0 = disabled. e.g. 10.0 = exit if price moves 10% in favor
     trailing_stop_atr_period: int = 0  # 0 = disabled, e.g. 14
     trailing_stop_atr_mult: float = 3.0  # ATR x mult = trailing distance
+    # Leverage / contract settings
+    max_leverage: float = 10.0              # Hard cap (1.0~20.0)
+    leverage_mode: str = "dynamic"          # "dynamic"=AI assess, "fixed"=constant
+    fixed_leverage: float = 1.0             # Used when leverage_mode="fixed"
+    funding_rate: float = 0.0001            # Per 8h (0.01%), ~10.95% annualized
+    maintenance_margin_rate: float = 0.005  # 0.5% (Binance default)
 
 
 @dataclass
