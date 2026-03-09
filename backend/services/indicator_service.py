@@ -145,6 +145,87 @@ def atr(highs: List[float], lows: List[float], closes: List[float],
     return result
 
 
+def adx(highs: List[float], lows: List[float], closes: List[float],
+        period: int = 14) -> List[Optional[float]]:
+    """
+    Average Directional Index — measures trend strength (0–100).
+    ADX > 25 indicates a strong trend, < 20 indicates weak/no trend.
+    """
+    n = len(closes)
+    result = [None] * n
+    if n < 2 * period:
+        return result
+
+    # Step 1: Calculate +DM, -DM, TR
+    plus_dm = []
+    minus_dm = []
+    true_ranges = []
+
+    for i in range(1, n):
+        up_move = highs[i] - highs[i - 1]
+        down_move = lows[i - 1] - lows[i]
+
+        pdm = up_move if (up_move > down_move and up_move > 0) else 0.0
+        mdm = down_move if (down_move > up_move and down_move > 0) else 0.0
+        plus_dm.append(pdm)
+        minus_dm.append(mdm)
+
+        tr = max(
+            highs[i] - lows[i],
+            abs(highs[i] - closes[i - 1]),
+            abs(lows[i] - closes[i - 1])
+        )
+        true_ranges.append(tr)
+
+    # Step 2: Smooth with Wilder's method (initial = sum of first `period` values)
+    if len(true_ranges) < period:
+        return result
+
+    smooth_plus_dm = float(sum(plus_dm[:period]))
+    smooth_minus_dm = float(sum(minus_dm[:period]))
+    smooth_tr = float(sum(true_ranges[:period]))
+
+    # Step 3: Calculate +DI, -DI, DX series
+    dx_values = []
+
+    # Compute initial DX from the initial smoothed values
+    def _compute_dx(s_plus_dm: float, s_minus_dm: float, s_tr: float) -> float:
+        if s_tr == 0:
+            return 0.0
+        plus_di = (s_plus_dm / s_tr) * 100
+        minus_di = (s_minus_dm / s_tr) * 100
+        di_sum = plus_di + minus_di
+        if di_sum == 0:
+            return 0.0
+        return abs(plus_di - minus_di) / di_sum * 100
+
+    dx_values.append(_compute_dx(smooth_plus_dm, smooth_minus_dm, smooth_tr))
+
+    for i in range(period, len(true_ranges)):
+        smooth_plus_dm = smooth_plus_dm - (smooth_plus_dm / period) + plus_dm[i]
+        smooth_minus_dm = smooth_minus_dm - (smooth_minus_dm / period) + minus_dm[i]
+        smooth_tr = smooth_tr - (smooth_tr / period) + true_ranges[i]
+        dx_values.append(_compute_dx(smooth_plus_dm, smooth_minus_dm, smooth_tr))
+
+    # Step 4: ADX = smoothed average of DX
+    if len(dx_values) < period:
+        return result
+
+    adx_val = float(np.mean(dx_values[:period]))
+    # First ADX at index: period (initial smooth uses candles 1..period) + period-1 (ADX smooth) = 2*period - 1
+    first_idx = 2 * period - 1
+    if first_idx < n:
+        result[first_idx] = adx_val
+
+    for i in range(period, len(dx_values)):
+        adx_val = (adx_val * (period - 1) + dx_values[i]) / period
+        idx = first_idx + (i - period + 1)
+        if idx < n:
+            result[idx] = adx_val
+
+    return result
+
+
 def stochastic(highs: List[float], lows: List[float], closes: List[float],
                k_period: int = 14, d_period: int = 3) -> Tuple[List[Optional[float]], List[Optional[float]]]:
     """Stochastic Oscillator. Returns (%K, %D)."""
