@@ -260,13 +260,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 
     <!-- Mode Toggle -->
     <div class="mode-toggle">
-      <button id="mode-backtest" class="active" onclick="toggleMode('backtest')">Backtest</button>
-      <button id="mode-paper" onclick="toggleMode('paper')">Paper Trading</button>
-      <button id="mode-live" onclick="toggleMode('live')">Live</button>
+      <button id="mode-backtest" class="active" onclick="toggleMode('backtest')" data-i18n="nav.backtest">Backtest</button>
+      <button id="mode-paper" onclick="toggleMode('paper')" data-i18n="nav.paper">Paper Trading</button>
+      <button id="mode-live" onclick="toggleMode('live')" data-i18n="nav.live">Live</button>
     </div>
 
     <div class="form-group">
-      <label>Trading Pair</label>
+      <label data-i18n="label.trading_pair">Trading Pair</label>
       <select id="symbol">
         <option value="BTCUSDT" selected>BTC/USDT</option>
         <option value="ETHUSDT">ETH/USDT</option>
@@ -278,17 +278,17 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     </div>
 
     <div class="form-group">
-      <label>Strategy</label>
+      <label data-i18n="label.strategy">Strategy</label>
       <select id="strategy"></select>
     </div>
 
     <div class="form-group">
-      <label>Strategy Description</label>
+      <label data-i18n="label.strategy_desc">Strategy Description</label>
       <p id="strategy-desc" style="font-size:12px;color:var(--text2);padding:4px 0;"></p>
     </div>
 
     <div class="form-group">
-      <label>Parameters</label>
+      <label data-i18n="label.parameters">Parameters</label>
       <div id="params" class="params-grid"></div>
     </div>
 
@@ -296,7 +296,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     <div id="backtest-shared-fields">
       <div class="form-row">
         <div class="form-group">
-          <label>Interval</label>
+          <label data-i18n="label.interval">Interval</label>
           <select id="interval">
             <option value="15m">15m</option>
             <option value="1h" selected>1h</option>
@@ -305,29 +305,29 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
           </select>
         </div>
         <div class="form-group">
-          <label>Capital (USD)</label>
+          <label data-i18n="label.capital">Capital (USD)</label>
           <input type="number" id="capital" value="10000" min="100">
         </div>
       </div>
 
       <div class="form-row">
         <div class="form-group">
-          <label>Start Date</label>
+          <label data-i18n="label.start_date">Start Date</label>
           <input type="date" id="start-date" value="2024-01-01">
         </div>
         <div class="form-group">
-          <label>End Date</label>
+          <label data-i18n="label.end_date">End Date</label>
           <input type="date" id="end-date" value="2025-01-01">
         </div>
       </div>
 
       <div class="form-row">
         <div class="form-group">
-          <label>Stop Loss % <span style="font-size:11px;color:var(--text2);font-weight:400;">(0 = disabled)</span></label>
+          <label><span data-i18n="label.stop_loss">Stop Loss %</span> <span style="font-size:11px;color:var(--text2);font-weight:400;" data-i18n="label.disabled_hint">(0 = disabled)</span></label>
           <input type="number" id="stopLossPct" value="0" min="0" max="50" step="0.5">
         </div>
         <div class="form-group">
-          <label>Take Profit % <span style="font-size:11px;color:var(--text2);font-weight:400;">(0 = disabled)</span></label>
+          <label><span data-i18n="label.take_profit">Take Profit %</span> <span style="font-size:11px;color:var(--text2);font-weight:400;" data-i18n="label.disabled_hint">(0 = disabled)</span></label>
           <input type="number" id="takeProfitPct" value="0" min="0" max="100" step="0.5">
         </div>
       </div>
@@ -335,39 +335,39 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 
     <!-- Backtest Controls -->
     <div id="backtest-controls">
-      <button class="btn btn-primary" id="run-btn" onclick="runBacktest()">Run Backtest</button>
+      <button class="btn btn-primary" id="run-btn" onclick="runBacktest()" data-i18n="btn.run_backtest">Run Backtest</button>
       <div id="status"></div>
     </div>
 
     <!-- Paper Trading Controls -->
     <div id="paper-controls" class="paper-controls">
       <div class="slider-group">
-        <label>Tick Speed <span id="tick-speed-value" class="slider-value">1.0s</span></label>
+        <label><span data-i18n="label.tick_speed">Tick Speed</span> <span id="tick-speed-value" class="slider-value">1.0s</span></label>
         <input type="range" id="tick-interval" min="0" max="2" step="0.1" value="1.0"
           oninput="document.getElementById('tick-speed-value').textContent = this.value + 's'">
       </div>
 
       <div class="radio-group">
-        <label>Mode</label><br>
+        <label data-i18n="label.mode">Mode</label><br>
         <label class="radio-label">
-          <input type="radio" name="paper-mode" value="simulated" checked> Simulated
+          <input type="radio" name="paper-mode" value="simulated" checked> <span data-i18n="label.simulated">Simulated</span>
         </label>
         <label class="radio-label">
-          <input type="radio" name="paper-mode" value="polling"> Polling
+          <input type="radio" name="paper-mode" value="polling"> <span data-i18n="label.polling">Polling</span>
         </label>
       </div>
 
-      <button class="btn btn-deploy" id="deploy-btn" onclick="deployPaperTrading()">Deploy Paper Trading</button>
-      <button class="btn btn-stop" id="stop-btn" onclick="stopPaperTrading()" disabled>Stop Session</button>
-      <button class="btn btn-close-all" id="close-all-btn" onclick="closeAllPositions()" disabled>Close All Positions</button>
+      <button class="btn btn-deploy" id="deploy-btn" onclick="deployPaperTrading()" data-i18n="btn.deploy_paper">Deploy Paper Trading</button>
+      <button class="btn btn-stop" id="stop-btn" onclick="stopPaperTrading()" disabled data-i18n="btn.stop">Stop Session</button>
+      <button class="btn btn-close-all" id="close-all-btn" onclick="closeAllPositions()" disabled data-i18n="btn.close_all">Close All Positions</button>
 
       <div id="session-status-display" style="display:none;">
         <div class="session-status">
           <div>
-            Session: <span id="paper-session-id" style="font-weight:600;color:var(--blue);">--</span>
+            <span data-i18n="label.session">Session:</span> <span id="paper-session-id" style="font-weight:600;color:var(--blue);">--</span>
           </div>
           <div style="margin-top:4px;">
-            State: <span id="paper-state" class="state-badge stopped">--</span>
+            <span data-i18n="label.state">State:</span> <span id="paper-state" class="state-badge stopped">--</span>
           </div>
           <div class="session-info" id="paper-session-info"></div>
         </div>
@@ -377,7 +377,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     <!-- Live Monitor Controls -->
     <div id="live-controls" class="live-controls">
       <div class="form-group">
-        <label>Interval</label>
+        <label data-i18n="label.interval">Interval</label>
         <select id="live-interval">
           <option value="1m">1m</option>
           <option value="5m">5m</option>
@@ -388,53 +388,53 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
       </div>
 
       <div class="form-group">
-        <label>Capital (USD)</label>
+        <label data-i18n="label.capital">Capital (USD)</label>
         <input type="number" id="live-capital" value="10000" min="100">
       </div>
 
       <div class="radio-group">
-        <label>Leverage Mode</label><br>
+        <label data-i18n="label.leverage_mode">Leverage Mode</label><br>
         <label class="radio-label">
-          <input type="radio" name="live-leverage-mode" value="dynamic" checked onchange="toggleLeverageMode()"> Dynamic
+          <input type="radio" name="live-leverage-mode" value="dynamic" checked onchange="toggleLeverageMode()"> <span data-i18n="label.dynamic">Dynamic</span>
         </label>
         <label class="radio-label">
-          <input type="radio" name="live-leverage-mode" value="fixed" onchange="toggleLeverageMode()"> Fixed
+          <input type="radio" name="live-leverage-mode" value="fixed" onchange="toggleLeverageMode()"> <span data-i18n="label.fixed">Fixed</span>
         </label>
       </div>
 
       <div class="slider-group">
-        <label>Max Leverage <span id="live-max-leverage-value" class="slider-value">3x</span></label>
+        <label><span data-i18n="label.max_leverage">Max Leverage</span> <span id="live-max-leverage-value" class="slider-value">3x</span></label>
         <input type="range" id="live-max-leverage" min="1" max="10" step="1" value="3"
           oninput="document.getElementById('live-max-leverage-value').textContent = this.value + 'x'">
       </div>
 
       <div class="form-group" id="live-fixed-leverage-group" style="display:none;">
-        <label>Fixed Leverage</label>
+        <label data-i18n="label.fixed_leverage">Fixed Leverage</label>
         <input type="number" id="live-fixed-leverage" value="2" min="1" max="10" step="0.5">
       </div>
 
       <div class="form-row">
         <div class="form-group">
-          <label>Stop Loss % <span style="font-size:11px;color:var(--text2);font-weight:400;">(0 = off)</span></label>
+          <label><span data-i18n="label.stop_loss">Stop Loss %</span> <span style="font-size:11px;color:var(--text2);font-weight:400;" data-i18n="label.off_hint">(0 = off)</span></label>
           <input type="number" id="live-stop-loss" value="5" min="0" max="50" step="0.5">
         </div>
         <div class="form-group">
-          <label>Take Profit % <span style="font-size:11px;color:var(--text2);font-weight:400;">(0 = off)</span></label>
+          <label><span data-i18n="label.take_profit">Take Profit %</span> <span style="font-size:11px;color:var(--text2);font-weight:400;" data-i18n="label.off_hint">(0 = off)</span></label>
           <input type="number" id="live-take-profit" value="10" min="0" max="100" step="0.5">
         </div>
       </div>
 
-      <button class="btn btn-deploy" id="live-deploy-btn" onclick="deployLiveSession()">Deploy Live Session</button>
-      <button class="btn btn-stop" id="live-stop-btn" onclick="stopLiveSession()" disabled>Stop Session</button>
-      <button class="btn btn-close-all" id="live-close-all-btn" onclick="closeAllLivePositions()" disabled>Emergency Close All</button>
+      <button class="btn btn-deploy" id="live-deploy-btn" onclick="deployLiveSession()" data-i18n="btn.deploy_live">Deploy Live Session</button>
+      <button class="btn btn-stop" id="live-stop-btn" onclick="stopLiveSession()" disabled data-i18n="btn.stop">Stop Session</button>
+      <button class="btn btn-close-all" id="live-close-all-btn" onclick="closeAllLivePositions()" disabled data-i18n="btn.emergency_close">Emergency Close All</button>
 
       <div id="live-session-status-display" style="display:none;">
         <div class="session-status">
           <div>
-            Session: <span id="live-session-id" style="font-weight:600;color:var(--blue);">--</span>
+            <span data-i18n="label.session">Session:</span> <span id="live-session-id" style="font-weight:600;color:var(--blue);">--</span>
           </div>
           <div style="margin-top:4px;">
-            State: <span id="live-state" class="state-badge stopped">--</span>
+            <span data-i18n="label.state">State:</span> <span id="live-state" class="state-badge stopped">--</span>
           </div>
           <div class="session-info" id="live-session-info"></div>
         </div>
@@ -442,7 +442,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     </div>
 
     <div class="history" id="history-section" style="display:none;">
-      <h3>History</h3>
+      <h3 data-i18n="label.history">History</h3>
       <div id="history-list"></div>
     </div>
   </div>
@@ -451,10 +451,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     <!-- Backtest Main Area -->
     <div id="backtest-main">
       <div class="empty-state" id="empty-state">
-        <h2>Select a Strategy and Run</h2>
-        <p>Configure your strategy parameters on the left, then click "Run Backtest" to see results.</p>
+        <h2 data-i18n="empty.backtest_title">Select a Strategy and Run</h2>
+        <p data-i18n="empty.backtest_desc">Configure your strategy parameters on the left, then click "Run Backtest" to see results.</p>
         <p style="margin-top:16px;font-size:13px;">
-          <strong>API for Agents:</strong><br>
+          <strong data-i18n="empty.api_label">API for Agents:</strong><br>
           <code style="background:var(--bg3);padding:2px 6px;border-radius:4px;">POST /api/backtest/run</code>
           <code style="background:var(--bg3);padding:2px 6px;border-radius:4px;">GET /api/strategies</code>
         </p>
@@ -465,10 +465,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     <!-- Paper Trading Main Area -->
     <div id="paper-main" class="paper-results">
       <div class="paper-empty-state" id="paper-empty-state">
-        <h2>Paper Trading Mode</h2>
-        <p>Configure your strategy and click "Deploy Paper Trading" to start a simulated trading session.</p>
+        <h2 data-i18n="empty.paper_title">Paper Trading Mode</h2>
+        <p data-i18n="empty.paper_desc">Configure your strategy and click "Deploy Paper Trading" to start a simulated trading session.</p>
         <p style="margin-top:16px;font-size:13px;">
-          <strong>API for Agents:</strong><br>
+          <strong data-i18n="empty.api_label">API for Agents:</strong><br>
           <code style="background:var(--bg3);padding:2px 6px;border-radius:4px;">POST /api/paper/deploy</code>
           <code style="background:var(--bg3);padding:2px 6px;border-radius:4px;">GET /api/paper/{id}</code>
         </p>
@@ -479,24 +479,24 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 
         <!-- Open Positions -->
         <div id="paper-positions" class="position-card">
-          <h4>Open Positions</h4>
-          <div id="paper-positions-content" class="no-position">No open positions</div>
+          <h4 data-i18n="section.open_positions">Open Positions</h4>
+          <div id="paper-positions-content" class="no-position" data-i18n="empty.no_positions">No open positions</div>
         </div>
 
         <!-- Equity Curve -->
-        <div class="chart-wrapper"><button class="btn-reset-zoom" onclick="resetZoom('paper-equity-chart')">Reset Zoom</button><div id="paper-equity-chart" class="chart-container" style="min-height:300px;"></div></div>
+        <div class="chart-wrapper"><button class="btn-reset-zoom" onclick="resetZoom('paper-equity-chart')" data-i18n="btn.reset_zoom">Reset Zoom</button><div id="paper-equity-chart" class="chart-container" style="min-height:300px;"></div></div>
 
         <!-- Recent Orders -->
         <div class="orders-section">
-          <h4>Recent Orders</h4>
+          <h4 data-i18n="section.recent_orders">Recent Orders</h4>
           <div class="chart-container" style="overflow-x:auto;">
             <table class="trades-table" id="paper-orders-table">
               <thead><tr>
-                <th>Time</th><th>Side</th><th>Quantity</th><th>Price</th>
-                <th>Status</th><th>Commission</th>
+                <th data-i18n="table.time">Time</th><th data-i18n="table.side">Side</th><th data-i18n="table.quantity">Quantity</th><th data-i18n="table.price">Price</th>
+                <th data-i18n="table.status">Status</th><th data-i18n="table.commission">Commission</th>
               </tr></thead>
               <tbody id="paper-orders-body">
-                <tr><td colspan="6" style="text-align:center;color:var(--text2);padding:20px;">No orders yet</td></tr>
+                <tr><td colspan="6" style="text-align:center;color:var(--text2);padding:20px;" data-i18n="empty.no_orders">No orders yet</td></tr>
               </tbody>
             </table>
           </div>
@@ -507,10 +507,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     <!-- Live Monitor Main Area -->
     <div id="live-main" class="live-results">
       <div class="live-empty-state" id="live-empty-state">
-        <h2>Live Monitor</h2>
-        <p>Deploy a real-time paper trading session with leverage support and live market data.</p>
+        <h2 data-i18n="empty.live_title">Live Monitor</h2>
+        <p data-i18n="empty.live_desc">Deploy a real-time paper trading session with leverage support and live market data.</p>
         <p style="margin-top:16px;font-size:13px;">
-          <strong>API for Agents:</strong><br>
+          <strong data-i18n="empty.api_label">API for Agents:</strong><br>
           <code style="background:var(--bg3);padding:2px 6px;border-radius:4px;">POST /api/paper/deploy { mode: "realtime" }</code>
           <code style="background:var(--bg3);padding:2px 6px;border-radius:4px;">GET /api/paper/{id}/equity</code>
         </p>
@@ -521,27 +521,27 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 
         <!-- Open Positions -->
         <div id="live-positions" class="position-card">
-          <h4>Open Positions</h4>
-          <div id="live-positions-content" class="no-position">No open positions</div>
+          <h4 data-i18n="section.open_positions">Open Positions</h4>
+          <div id="live-positions-content" class="no-position" data-i18n="empty.no_positions">No open positions</div>
         </div>
 
         <!-- Equity Curve -->
         <div class="chart-wrapper">
-          <button class="btn-reset-zoom" onclick="resetZoom('live-equity-chart')">Reset Zoom</button>
+          <button class="btn-reset-zoom" onclick="resetZoom('live-equity-chart')" data-i18n="btn.reset_zoom">Reset Zoom</button>
           <div id="live-equity-chart" class="chart-container" style="min-height:300px;"></div>
         </div>
 
         <!-- Recent Orders -->
         <div class="orders-section">
-          <h4>Recent Orders (Latest 20)</h4>
+          <h4 data-i18n="section.recent_orders_live">Recent Orders (Latest 20)</h4>
           <div class="chart-container" style="overflow-x:auto;">
             <table class="trades-table" id="live-orders-table">
               <thead><tr>
-                <th>Time</th><th>Side</th><th>Quantity</th><th>Price</th>
-                <th>Leverage</th><th>Status</th><th>Commission</th>
+                <th data-i18n="table.time">Time</th><th data-i18n="table.side">Side</th><th data-i18n="table.quantity">Quantity</th><th data-i18n="table.price">Price</th>
+                <th data-i18n="table.leverage">Leverage</th><th data-i18n="table.status">Status</th><th data-i18n="table.commission">Commission</th>
               </tr></thead>
               <tbody id="live-orders-body">
-                <tr><td colspan="7" style="text-align:center;color:var(--text2);padding:20px;">No orders yet</td></tr>
+                <tr><td colspan="7" style="text-align:center;color:var(--text2);padding:20px;" data-i18n="empty.no_orders">No orders yet</td></tr>
               </tbody>
             </table>
           </div>
