@@ -1,13 +1,15 @@
 """
 Live Trading Engine - runs strategies on real-time (or simulated) data.
 
-For Phase 1-2, "real-time" means:
+Supports three modes:
   1. Simulated mode: replay historical candles with configurable tick speed
   2. Polling mode: fetch latest candle from Binance REST every interval
+  3. Realtime mode: consume closed candles from Binance WebSocket feed
 
 The engine runs in a background daemon thread.
 Supports LONG and SHORT positions, with optional stop-loss/take-profit.
 """
+import datetime as dt_module
 import threading
 import time
 import logging
@@ -21,6 +23,8 @@ from services.data_service import fetch_klines
 from live.models import TradingSessionConfig, AccountState
 from live.adapters.base_adapter import ExchangeAdapter
 from live.persistence import TradingPersistence
+from live.feeds.binance_ws_feed import BinanceWebSocketFeed
+from services.leverage_service import LeverageAssessor
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +53,7 @@ class LiveTradingEngine:
         self._error_msg = ""
         self._candle_count = 0
         self._signal_count = 0
+        self._feed = None  # WebSocket feed (realtime mode only)
 
     @property
     def session_id(self) -> str:
@@ -77,6 +82,10 @@ class LiveTradingEngine:
     def stop(self) -> None:
         """Signal the engine to stop and wait for it to finish."""
         self._stop_event.set()
+        # Stop WebSocket feed if running
+        if self._feed is not None:
+            self._feed.stop()
+            self._feed = None
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=10)
         self._state = "stopped"
@@ -114,6 +123,8 @@ class LiveTradingEngine:
                 self._run_simulated()
             elif self.config.mode == "polling":
                 self._run_polling()
+            elif self.config.mode == "realtime":
+                self._run_realtime()
             else:
                 raise ValueError(f"Unknown mode: {self.config.mode}")
         except Exception as e:
@@ -311,6 +322,237 @@ class LiveTradingEngine:
             f"{self.config.symbol} @ {order.avg_fill_price:.2f} "
             f"| PnL: {position.realized_pnl:.2f} | {signal.reason}"
         )
+
+    # ------------------------------------------------------------------
+    # Realtime mode
+    # ------------------------------------------------------------------
+
+    def _run_realtime(self) -> None:
+        """Run with Binance WebSocket real-time data feed.
+
+        Flow:
+        1. Warmup: fetch 30 days of historical candles for indicator calculation
+        2. Start WebSocket feed for real-time closed candles
+        3. For each candle: liquidation check -> funding -> signal -> process -> equity
+        """
+        symbol = self.config.symbol
+        interval = self.config.interval
+
+        # 1. Warmup: fetch historical candles for strategy indicators
+        warmup_end = dt_module.datetime.now(dt_module.timezone.utc)
+        warmup_start = warmup_end - dt_module.timedelta(days=30)
+        warmup_data = fetch_klines(
+            symbol, interval,
+            warmup_start.strftime("%Y-%m-%d"),
+            warmup_end.strftime("%Y-%m-%d"),
+        )
+        candle_buffer = list(warmup_data.candles)
+        logger.info(f"Warmup loaded {len(candle_buffer)} candles for {symbol}")
+
+        # 2. Initialize leverage assessor
+        assessor = LeverageAssessor()
+        strategy = self._strategy
+        adapter = self.adapter
+
+        # Funding rate tracking
+        funding_interval = self._funding_candle_interval(interval)
+        funding_prorate = self._funding_prorate_factor(interval)
+        candle_count = 0
+
+        # 3. Start WebSocket feed
+        feed = BinanceWebSocketFeed(
+            symbol.lower(), interval,
+            on_price_update=lambda p: adapter.set_current_price(symbol, p),
+        )
+        feed.start()
+        self._feed = feed
+
+        try:
+            while not self._stop_event.is_set():
+                candle = feed.get_candle(timeout=5.0)
+                if candle is None:
+                    continue
+
+                candle_buffer.append(candle)
+                ohlcv = OHLCVData(
+                    symbol=symbol, interval=interval, candles=candle_buffer
+                )
+                index = len(candle_buffer) - 1
+
+                adapter.set_current_price(symbol, candle.close)
+                self._candle_count += 1
+
+                # --- Risk management checks ---
+                # 1. Liquidation check
+                liquidated = adapter.check_liquidation(symbol, candle)
+                if liquidated:
+                    logger.warning(
+                        f"Position LIQUIDATED on candle {candle.timestamp}"
+                    )
+
+                # 2. Funding rate (every N candles)
+                config = self.config
+                if (not liquidated and config.funding_rate > 0
+                        and candle_count > 0):
+                    if (funding_interval > 0
+                            and candle_count % funding_interval == 0):
+                        cost = adapter.apply_funding(
+                            symbol, candle.close,
+                            config.funding_rate * funding_prorate,
+                        )
+                        if cost > 0:
+                            logger.info(f"Funding paid: ${cost:.4f}")
+
+                # --- Strategy signal ---
+                # Clear indicator cache: candle_buffer grows each iteration,
+                # so cached arrays (e.g. RSI) from the previous tick are stale.
+                strategy._indicator_cache.clear()
+                signal = strategy.generate_signal(ohlcv, index)
+                if signal and not liquidated:
+                    self._process_signal_with_leverage(
+                        signal, candle, ohlcv, index, assessor
+                    )
+                    self._signal_count += 1
+
+                # --- Record equity ---
+                try:
+                    account = adapter.get_account_state()
+                    account.session_id = config.session_id
+                    account.timestamp = candle.timestamp
+                    self.persistence.save_equity_snapshot(account)
+                except Exception as e:
+                    logger.error(f"Equity snapshot error: {e}")
+
+                candle_count += 1
+
+        finally:
+            feed.stop()
+
+    def _process_signal_with_leverage(
+        self, signal: TradeSignal, candle: Candle,
+        ohlcv: OHLCVData, index: int,
+        assessor: LeverageAssessor,
+    ) -> None:
+        """Process signal with leverage assessment.
+
+        Unlike _process_signal() (used by simulated/polling modes), this
+        method integrates the LeverageAssessor for dynamic or fixed leverage
+        and passes leverage parameters to the adapter.
+        """
+        config = self.config
+        symbol = config.symbol
+        adapter = self.adapter
+
+        # Determine leverage
+        side = "LONG" if signal.signal_type in ("BUY",) else "SHORT"
+        if config.leverage_mode == "dynamic":
+            assessed = assessor.assess(ohlcv, index, side, config.max_leverage)
+        else:
+            assessed = config.fixed_leverage
+        final_leverage = assessor.resolve_leverage(
+            signal.leverage, assessed, config.leverage_mode,
+            config.fixed_leverage, config.max_leverage,
+        )
+
+        position = adapter.get_position(symbol)
+
+        if signal.signal_type == "BUY":
+            # Close any SHORT first
+            if position and position.side == "SHORT":
+                order = adapter.place_order(
+                    symbol, "SHORT_CLOSE", "MARKET",
+                    position.quantity, candle.close,
+                    "Closing SHORT for BUY",
+                )
+                self.persistence.save_order(order)
+            # Open LONG if no position
+            pos = adapter.get_position(symbol)
+            if pos is None:
+                order = adapter.place_order(
+                    symbol, "BUY", "MARKET", 0, candle.close,
+                    signal.reason, leverage=final_leverage,
+                    maintenance_margin_rate=config.maintenance_margin_rate,
+                )
+                self.persistence.save_order(order)
+                logger.info(
+                    f"[{self.session_id}] BUY @ {candle.close:.2f} "
+                    f"leverage={final_leverage:.1f}x | {signal.reason}"
+                )
+
+        elif signal.signal_type == "SELL":
+            if position and position.side == "LONG":
+                order = adapter.place_order(
+                    symbol, "SELL", "MARKET",
+                    position.quantity, candle.close, signal.reason,
+                )
+                self.persistence.save_order(order)
+                logger.info(
+                    f"[{self.session_id}] SELL @ {candle.close:.2f} "
+                    f"| {signal.reason}"
+                )
+
+        elif signal.signal_type == "SHORT":
+            # Close any LONG first
+            if position and position.side == "LONG":
+                order = adapter.place_order(
+                    symbol, "SELL", "MARKET",
+                    position.quantity, candle.close,
+                    "Closing LONG for SHORT",
+                )
+                self.persistence.save_order(order)
+            # Open SHORT if no position
+            pos = adapter.get_position(symbol)
+            if pos is None:
+                order = adapter.place_order(
+                    symbol, "SHORT_OPEN", "MARKET", 0,
+                    candle.close, signal.reason,
+                    leverage=final_leverage,
+                    maintenance_margin_rate=config.maintenance_margin_rate,
+                )
+                self.persistence.save_order(order)
+                logger.info(
+                    f"[{self.session_id}] SHORT @ {candle.close:.2f} "
+                    f"leverage={final_leverage:.1f}x | {signal.reason}"
+                )
+
+        elif signal.signal_type == "COVER":
+            if position and position.side == "SHORT":
+                order = adapter.place_order(
+                    symbol, "SHORT_CLOSE", "MARKET",
+                    position.quantity, candle.close, signal.reason,
+                )
+                self.persistence.save_order(order)
+                logger.info(
+                    f"[{self.session_id}] COVER @ {candle.close:.2f} "
+                    f"| {signal.reason}"
+                )
+
+    # ------------------------------------------------------------------
+    # Funding rate helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _funding_candle_interval(interval: str) -> int:
+        """Number of candles between 8-hour funding rate applications.
+
+        Funding is applied every 8 hours. This returns how many candles
+        of the given interval fit into 8 hours.
+        """
+        intervals = {
+            "1m": 480, "5m": 96, "15m": 32, "30m": 16,
+            "1h": 8, "2h": 4, "4h": 2, "8h": 1, "12h": 1, "1d": 1,
+        }
+        return intervals.get(interval, 8)
+
+    @staticmethod
+    def _funding_prorate_factor(interval: str) -> float:
+        """Prorate factor for intervals >= 8h.
+
+        For intervals longer than 8h, a single candle spans more than
+        one funding period, so the rate is multiplied accordingly.
+        """
+        factors = {"8h": 1.0, "12h": 1.5, "1d": 3.0}
+        return factors.get(interval, 1.0)
 
     # ------------------------------------------------------------------
     # Helpers
