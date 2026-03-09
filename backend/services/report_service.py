@@ -74,8 +74,14 @@ def calculate_metrics(trades: List[Trade], equity_curve: List[float],
     sl_exits = len([t for t in closed if t.exit_type == "STOP_LOSS"])
     tp_exits = len([t for t in closed if t.exit_type == "TAKE_PROFIT"])
     signal_exits = len([t for t in closed if t.exit_type == "SIGNAL"])
+    liq_exits = len([t for t in closed if t.exit_type == "LIQUIDATION"])
     long_winners = [t for t in long_trades if t.profit_loss > 0]
     short_winners = [t for t in short_trades if t.profit_loss > 0]
+
+    # Leverage metrics
+    leveraged_trades = [t for t in closed if t.leverage > 1.0]
+    all_leverage = [t.leverage for t in closed]
+    all_funding = [t.funding_paid for t in closed]
 
     return {
         "total_trades": len(closed),
@@ -106,6 +112,13 @@ def calculate_metrics(trades: List[Trade], equity_curve: List[float],
         "signal_exits": signal_exits,
         "sl_exits": sl_exits,
         "tp_exits": tp_exits,
+        "liquidation_exits": liq_exits,
+        # Leverage metrics
+        "avg_leverage": round(float(np.mean(all_leverage)), 1) if all_leverage else 1.0,
+        "max_leverage_used": round(max(all_leverage), 1) if all_leverage else 1.0,
+        "total_funding_paid": round(sum(all_funding), 2),
+        "liquidation_count": liq_exits,
+        "leveraged_trade_count": len(leveraged_trades),
     }
 
 
@@ -177,6 +190,7 @@ def generate_charts(ohlcv: OHLCVData, trades: List[Trade],
     signal_exit_times, signal_exit_prices = [], []
     sl_exit_times, sl_exit_prices = [], []
     tp_exit_times, tp_exit_prices = [], []
+    liq_exit_times, liq_exit_prices = [], []
 
     for t in trades:
         entry_str = datetime.fromtimestamp(t.entry_time / 1000).strftime("%Y-%m-%d %H:%M")
@@ -195,6 +209,9 @@ def generate_charts(ohlcv: OHLCVData, trades: List[Trade],
             elif t.exit_type == "TAKE_PROFIT":
                 tp_exit_times.append(exit_str)
                 tp_exit_prices.append(t.exit_price)
+            elif t.exit_type == "LIQUIDATION":
+                liq_exit_times.append(exit_str)
+                liq_exit_prices.append(t.exit_price)
             else:
                 signal_exit_times.append(exit_str)
                 signal_exit_prices.append(t.exit_price)
@@ -228,6 +245,13 @@ def generate_charts(ohlcv: OHLCVData, trades: List[Trade],
             "x": tp_exit_times, "y": tp_exit_prices,
             "type": "scatter", "mode": "markers", "name": "Take Profit",
             "marker": {"symbol": "star", "size": 10, "color": "#4caf50"}
+        })
+    if liq_exit_times:
+        trade_markers.append({
+            "x": liq_exit_times, "y": liq_exit_prices,
+            "type": "scatter", "mode": "markers", "name": "Liquidation",
+            "marker": {"symbol": "x-thin-open", "size": 14, "color": "#ff0000",
+                        "line": {"width": 3}}
         })
 
     kline_chart = {
