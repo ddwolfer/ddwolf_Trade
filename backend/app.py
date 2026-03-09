@@ -254,6 +254,11 @@ class BacktestHandler(SimpleHTTPRequestHandler):
                     take_profit_pct=float(data.get("take_profit_pct", 0)),
                     trailing_stop_atr_period=int(data.get("trailing_stop_atr_period", 0)),
                     trailing_stop_atr_mult=float(data.get("trailing_stop_atr_mult", 3.0)),
+                    max_leverage=float(data.get("max_leverage", 10.0)),
+                    leverage_mode=data.get("leverage_mode", "dynamic"),
+                    fixed_leverage=float(data.get("fixed_leverage", 1.0)),
+                    funding_rate=float(data.get("funding_rate", 0.0001)),
+                    maintenance_margin_rate=float(data.get("maintenance_margin_rate", 0.005)),
                 )
 
                 # Run synchronously for simplicity (most backtests are fast)
@@ -281,6 +286,11 @@ class BacktestHandler(SimpleHTTPRequestHandler):
                         take_profit_pct=float(cfg_data.get("take_profit_pct", 0)),
                         trailing_stop_atr_period=int(cfg_data.get("trailing_stop_atr_period", 0)),
                         trailing_stop_atr_mult=float(cfg_data.get("trailing_stop_atr_mult", 3.0)),
+                        max_leverage=float(cfg_data.get("max_leverage", 10.0)),
+                        leverage_mode=cfg_data.get("leverage_mode", "dynamic"),
+                        fixed_leverage=float(cfg_data.get("fixed_leverage", 1.0)),
+                        funding_rate=float(cfg_data.get("funding_rate", 0.0001)),
+                        maintenance_margin_rate=float(cfg_data.get("maintenance_margin_rate", 0.005)),
                     )
                     result = backtest_service.run_backtest(config)
                     results.append({

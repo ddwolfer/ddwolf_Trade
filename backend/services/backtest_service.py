@@ -50,6 +50,13 @@ def run_backtest(config: BacktestConfig) -> BacktestResult:
             take_profit_pct=config.take_profit_pct,
             trailing_stop_atr_period=config.trailing_stop_atr_period,
             trailing_stop_atr_mult=config.trailing_stop_atr_mult,
+            # Leverage params
+            max_leverage=config.max_leverage,
+            leverage_mode=config.leverage_mode,
+            fixed_leverage=config.fixed_leverage,
+            funding_rate=config.funding_rate,
+            maintenance_margin_rate=config.maintenance_margin_rate,
+            interval=config.interval,
         )
 
         # 4. Calculate metrics
