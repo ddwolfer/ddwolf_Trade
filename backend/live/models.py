@@ -56,6 +56,10 @@ class Position:
     unrealized_pnl: float = 0.0
     realized_pnl: float = 0.0
     status: str = "OPEN"  # "OPEN" or "CLOSED"
+    leverage: float = 1.0
+    margin_used: float = 0.0
+    liquidation_price: float = 0.0
+    funding_paid: float = 0.0
     entry_order_id: str = ""
     exit_order_id: str = ""
 
@@ -106,6 +110,14 @@ class TradingSessionConfig:
     data_end_date: str = "2025-01-01"
     tick_interval_seconds: float = 1.0
     mode: str = "simulated"  # "simulated" or "paper" or "live"
+    # Leverage / contract settings
+    max_leverage: float = 10.0
+    leverage_mode: str = "dynamic"         # "dynamic" or "fixed"
+    fixed_leverage: float = 1.0
+    funding_rate: float = 0.0001           # Per 8h
+    maintenance_margin_rate: float = 0.005  # 0.5%
+    stop_loss_pct: float = 0.0
+    take_profit_pct: float = 0.0
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

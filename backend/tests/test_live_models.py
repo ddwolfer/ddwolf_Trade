@@ -203,3 +203,51 @@ class TestTradingSessionConfig:
         config1 = TradingSessionConfig()
         config2 = TradingSessionConfig()
         assert config1.session_id != config2.session_id
+
+
+class TestTradingSessionConfigLeverage:
+    def test_default_leverage_fields(self):
+        config = TradingSessionConfig()
+        assert config.max_leverage == 10.0
+        assert config.leverage_mode == "dynamic"
+        assert config.fixed_leverage == 1.0
+        assert config.funding_rate == 0.0001
+        assert config.maintenance_margin_rate == 0.005
+        assert config.stop_loss_pct == 0.0
+        assert config.take_profit_pct == 0.0
+
+    def test_custom_leverage_config(self):
+        config = TradingSessionConfig(
+            max_leverage=5.0,
+            leverage_mode="fixed",
+            fixed_leverage=3.0,
+            stop_loss_pct=5.0,
+        )
+        assert config.max_leverage == 5.0
+        assert config.leverage_mode == "fixed"
+        assert config.fixed_leverage == 3.0
+        assert config.stop_loss_pct == 5.0
+
+    def test_leverage_config_in_to_dict(self):
+        config = TradingSessionConfig(max_leverage=5.0)
+        d = config.to_dict()
+        assert d["max_leverage"] == 5.0
+        assert d["leverage_mode"] == "dynamic"
+
+
+class TestPositionLeverage:
+    def test_position_default_leverage(self):
+        pos = Position(symbol="BTCUSDT", side="LONG", quantity=1.0, entry_price=100.0)
+        assert pos.leverage == 1.0
+        assert pos.margin_used == 0.0
+        assert pos.liquidation_price == 0.0
+        assert pos.funding_paid == 0.0
+
+    def test_position_custom_leverage(self):
+        pos = Position(
+            symbol="BTCUSDT", side="LONG", quantity=1.0, entry_price=100.0,
+            leverage=5.0, margin_used=20.0, liquidation_price=80.0,
+        )
+        assert pos.leverage == 5.0
+        assert pos.margin_used == 20.0
+        assert pos.liquidation_price == 80.0
