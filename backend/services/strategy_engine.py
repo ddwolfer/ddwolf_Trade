@@ -345,3 +345,23 @@ class StrategyEngine:
                 return trail_stop
 
         return None
+
+    def _check_liquidation(self, position: Trade, candle: Candle) -> Optional[float]:
+        """
+        Check if Binance-style liquidation is triggered.
+
+        Returns liquidation_price if triggered, else None.
+        Liquidation occurs when price reaches the liquidation level,
+        meaning the margin is fully consumed by losses.
+        """
+        if position.leverage <= 1.0 or position.liquidation_price <= 0:
+            return None  # No liquidation at 1x
+
+        if position.side == "LONG":
+            if candle.low <= position.liquidation_price:
+                return position.liquidation_price
+        else:  # SHORT
+            if candle.high >= position.liquidation_price:
+                return position.liquidation_price
+
+        return None
