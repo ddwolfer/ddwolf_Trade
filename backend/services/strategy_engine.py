@@ -11,6 +11,7 @@ from typing import List, Tuple, Optional
 from models import Candle, OHLCVData, Trade, TradeSignal
 from strategies.base_strategy import BaseStrategy
 from services import indicator_service as ind
+from services.leverage_service import LeverageAssessor
 
 
 class StrategyEngine:
@@ -25,7 +26,15 @@ class StrategyEngine:
             stop_loss_pct: float = 0.0,
             take_profit_pct: float = 0.0,
             trailing_stop_atr_period: int = 0,
-            trailing_stop_atr_mult: float = 3.0) -> Tuple[List[Trade], List[float], List[int]]:
+            trailing_stop_atr_mult: float = 3.0,
+            # Leverage params (new — backward compatible defaults)
+            max_leverage: float = 10.0,
+            leverage_mode: str = "dynamic",
+            fixed_leverage: float = 1.0,
+            funding_rate: float = 0.0,
+            maintenance_margin_rate: float = 0.005,
+            interval: str = "1h",
+            ) -> Tuple[List[Trade], List[float], List[int]]:
         """
         Run backtest on OHLCV data with given strategy.
 
@@ -37,6 +46,12 @@ class StrategyEngine:
             take_profit_pct: Take-profit percentage (0 = disabled). e.g. 10.0 = 10%
             trailing_stop_atr_period: ATR period for trailing stop (0 = disabled). e.g. 14
             trailing_stop_atr_mult: ATR multiplier for trailing distance. e.g. 3.0
+            max_leverage: Hard cap on leverage (1.0~20.0)
+            leverage_mode: "dynamic" (AI assess) or "fixed" (constant)
+            fixed_leverage: Leverage when mode is "fixed"
+            funding_rate: Per-8h funding rate (0.0 = disabled)
+            maintenance_margin_rate: Binance-style maintenance margin rate
+            interval: Candle interval string for funding calc (e.g. "1h")
 
         Returns:
             (trades, equity_curve, equity_timestamps)
@@ -46,6 +61,11 @@ class StrategyEngine:
         trades: List[Trade] = []
         equity_curve: List[float] = []
         equity_timestamps: List[int] = []
+
+        # Leverage assessment setup
+        assessor = LeverageAssessor()
+        funding_interval = self._funding_candle_interval(interval)
+        funding_prorate = self._funding_prorate_factor(interval)
 
         # Pre-compute ATR for trailing stop if enabled
         atr_values: List[Optional[float]] = []
@@ -61,6 +81,34 @@ class StrategyEngine:
 
         for i in range(len(ohlcv.candles)):
             candle = ohlcv.candles[i]
+
+            # 0a. Check LIQUIDATION first (highest priority for leveraged positions)
+            if position is not None and position.leverage > 1.0:
+                liq_price = self._check_liquidation(position, candle)
+                if liq_price is not None:
+                    # Liquidation: margin is fully consumed, capital goes to 0
+                    position.exit_time = candle.timestamp
+                    position.exit_price = liq_price
+                    position.exit_type = "LIQUIDATION"
+                    position.status = "CLOSED"
+                    position.exit_reason = f"LIQUIDATION at ${liq_price:,.2f}"
+                    position.profit_loss = -position.margin_used  # Lost all margin
+                    position.return_pct = -100.0
+                    trades.append(position)
+                    position = None
+                    capital = 0.0
+                    equity_curve.append(0.0)
+                    equity_timestamps.append(candle.timestamp)
+                    continue  # Skip rest of this candle
+
+            # 0b. Apply FUNDING RATE (if position is open and funding enabled)
+            if position is not None and funding_rate > 0 and position.leverage > 1.0:
+                if funding_interval > 0 and i > 0 and i % funding_interval == 0:
+                    cost = self._calculate_funding_cost(
+                        position, candle, funding_rate, funding_prorate
+                    )
+                    position.funding_paid += cost
+                    capital -= cost
 
             # 1. Check fixed SL/TP FIRST (highest priority)
             if position is not None and (stop_loss_pct > 0 or take_profit_pct > 0):
@@ -102,14 +150,22 @@ class StrategyEngine:
             signal = strategy.generate_signal(ohlcv, i)
 
             # 4. Process signal
-            if signal is not None and position is None:
+            if signal is not None and capital > 0 and position is None:
                 # No position — can open LONG or SHORT
                 if signal.signal_type == "BUY":
-                    position, capital = self._open_long(candle, capital, signal)
+                    assessed = assessor.assess(ohlcv, i, "LONG", max_leverage) if leverage_mode == "dynamic" else fixed_leverage
+                    final_leverage = assessor.resolve_leverage(
+                        signal.leverage, assessed, leverage_mode, fixed_leverage, max_leverage
+                    )
+                    position, capital = self._open_long(candle, capital, signal, final_leverage, maintenance_margin_rate)
                     _trailing_max_price = candle.high
                     _trailing_min_price = float('inf')
                 elif signal.signal_type == "SHORT":
-                    position, capital = self._open_short(candle, capital, signal)
+                    assessed = assessor.assess(ohlcv, i, "SHORT", max_leverage) if leverage_mode == "dynamic" else fixed_leverage
+                    final_leverage = assessor.resolve_leverage(
+                        signal.leverage, assessed, leverage_mode, fixed_leverage, max_leverage
+                    )
+                    position, capital = self._open_short(candle, capital, signal, final_leverage, maintenance_margin_rate)
                     _trailing_min_price = candle.low
                     _trailing_max_price = 0.0
 
@@ -133,7 +189,12 @@ class StrategyEngine:
                         )
                         trades.append(position)
                         position = None
-                        position, capital = self._open_short(candle, capital, signal)
+                        if capital > 0:
+                            assessed = assessor.assess(ohlcv, i, "SHORT", max_leverage) if leverage_mode == "dynamic" else fixed_leverage
+                            final_leverage = assessor.resolve_leverage(
+                                signal.leverage, assessed, leverage_mode, fixed_leverage, max_leverage
+                            )
+                            position, capital = self._open_short(candle, capital, signal, final_leverage, maintenance_margin_rate)
                         _trailing_min_price = candle.low
                         _trailing_max_price = 0.0
 
@@ -148,17 +209,31 @@ class StrategyEngine:
                         trades.append(position)
                         position = None
                         # If BUY, also open LONG after closing SHORT
-                        if signal.signal_type == "BUY":
-                            position, capital = self._open_long(candle, capital, signal)
+                        if signal.signal_type == "BUY" and capital > 0:
+                            assessed = assessor.assess(ohlcv, i, "LONG", max_leverage) if leverage_mode == "dynamic" else fixed_leverage
+                            final_leverage = assessor.resolve_leverage(
+                                signal.leverage, assessed, leverage_mode, fixed_leverage, max_leverage
+                            )
+                            position, capital = self._open_long(candle, capital, signal, final_leverage, maintenance_margin_rate)
                             _trailing_max_price = candle.high
                             _trailing_min_price = float('inf')
 
             # 5. Calculate current equity
             if position is not None:
-                if position.side == "LONG":
-                    equity = position.quantity * candle.close
-                else:  # SHORT
-                    equity = capital + (position.entry_price - candle.close) * position.quantity
+                if position.leverage > 1.0:
+                    # Leveraged equity = margin + unrealized_pnl - funding_paid
+                    if position.side == "LONG":
+                        unrealized = (candle.close - position.entry_price) * position.quantity
+                    else:  # SHORT
+                        unrealized = (position.entry_price - candle.close) * position.quantity
+                    equity = position.margin_used + unrealized - position.funding_paid
+                    equity = max(equity, 0.0)
+                else:
+                    # Original 1x logic
+                    if position.side == "LONG":
+                        equity = position.quantity * candle.close
+                    else:  # SHORT
+                        equity = capital + (position.entry_price - candle.close) * position.quantity
             else:
                 equity = capital
             equity_curve.append(equity)
@@ -185,12 +260,21 @@ class StrategyEngine:
     # ------------------------------------------------------------------
 
     def _open_long(self, candle: Candle, capital: float,
-                   signal: TradeSignal) -> Tuple[Trade, float]:
+                   signal: TradeSignal,
+                   leverage: float = 1.0,
+                   maintenance_margin_rate: float = 0.005) -> Tuple[Trade, float]:
         """Open a LONG position. Returns (trade, remaining_capital)."""
         fill_price = candle.close * (1 + self.slippage_rate)
         commission = capital * self.commission_rate
-        available = capital - commission
-        quantity = available / fill_price
+        margin = capital - commission  # margin = available capital
+        position_value = margin * leverage
+        quantity = position_value / fill_price
+
+        # Calculate liquidation price for leveraged positions
+        liq_price = 0.0
+        if leverage > 1.0:
+            # LONG liq: entry * (1 - 1/leverage + mmr)
+            liq_price = fill_price * (1 - 1.0 / leverage + maintenance_margin_rate)
 
         position = Trade(
             entry_time=candle.timestamp,
@@ -198,24 +282,37 @@ class StrategyEngine:
             quantity=quantity,
             side="LONG",
             entry_reason=signal.reason,
+            leverage=leverage,
+            margin_used=margin,
+            liquidation_price=liq_price,
         )
-        return position, 0.0  # All capital in position
+        return position, 0.0  # All capital used as margin
 
     def _open_short(self, candle: Candle, capital: float,
-                    signal: TradeSignal) -> Tuple[Trade, float]:
+                    signal: TradeSignal,
+                    leverage: float = 1.0,
+                    maintenance_margin_rate: float = 0.005) -> Tuple[Trade, float]:
         """
         Open a SHORT position. Returns (trade, remaining_capital).
 
-        SHORT model (1x, no leverage):
+        SHORT model:
         - "Sell borrowed asset" at fill_price
         - Capital stays as collateral/margin
         - PnL tracked as (entry_price - current_price) * quantity
         - Commission deducted from capital at entry
+        - When leveraged, position_value = margin * leverage
         """
         fill_price = candle.close * (1 - self.slippage_rate)
         commission = capital * self.commission_rate
-        available = capital - commission
-        quantity = available / fill_price
+        margin = capital - commission
+        position_value = margin * leverage
+        quantity = position_value / fill_price
+
+        # Calculate liquidation price for leveraged positions
+        liq_price = 0.0
+        if leverage > 1.0:
+            # SHORT liq: entry * (1 + 1/leverage - mmr)
+            liq_price = fill_price * (1 + 1.0 / leverage - maintenance_margin_rate)
 
         position = Trade(
             entry_time=candle.timestamp,
@@ -223,9 +320,12 @@ class StrategyEngine:
             quantity=quantity,
             side="SHORT",
             entry_reason=signal.reason,
+            leverage=leverage,
+            margin_used=margin,
+            liquidation_price=liq_price,
         )
-        # Capital remains (it's our margin), minus entry commission
-        return position, capital - commission
+        # Capital remains as margin
+        return position, margin
 
     def _close_position(self, position: Trade, candle: Candle,
                         exit_price: float, exit_type: str,
@@ -234,26 +334,38 @@ class StrategyEngine:
         Close a position (LONG or SHORT). Returns new capital.
 
         Mutates the position object in-place (sets exit fields).
+        Leverage-aware: at 1x uses original logic for backward compat.
         """
         if position.side == "LONG":
             proceeds = position.quantity * exit_price
             commission = proceeds * self.commission_rate
-            capital = proceeds - commission
-            position.profit_loss = capital - (position.quantity * position.entry_price)
-            position.return_pct = (exit_price / position.entry_price - 1) * 100
+            if position.leverage > 1.0:
+                # Leveraged: PnL = (exit - entry) * qty - commission - funding
+                pnl = (exit_price - position.entry_price) * position.quantity - commission - position.funding_paid
+                capital = position.margin_used + pnl
+                position.profit_loss = pnl
+                position.return_pct = (pnl / position.margin_used) * 100 if position.margin_used > 0 else 0
+            else:
+                # Original 1x logic (unchanged for backward compat)
+                capital = proceeds - commission
+                position.profit_loss = capital - (position.quantity * position.entry_price)
+                position.return_pct = (exit_price / position.entry_price - 1) * 100
         else:  # SHORT
-            # Buy back the borrowed asset
             buy_cost = position.quantity * exit_price
             commission = buy_cost * self.commission_rate
-            # PnL = (entry - exit) * qty - commission
-            pnl = (position.entry_price - exit_price) * position.quantity - commission
-            position.profit_loss = pnl
-            position.return_pct = (position.entry_price / exit_price - 1) * 100
-            # Capital = margin + pnl
-            # Note: capital was already passed as the margin amount
-            # We need to reconstruct: entry_value + pnl
-            entry_value = position.quantity * position.entry_price
-            capital = entry_value + pnl
+            if position.leverage > 1.0:
+                # Leveraged SHORT: PnL = (entry - exit) * qty - commission - funding
+                pnl = (position.entry_price - exit_price) * position.quantity - commission - position.funding_paid
+                capital = position.margin_used + pnl
+                position.profit_loss = pnl
+                position.return_pct = (pnl / position.margin_used) * 100 if position.margin_used > 0 else 0
+            else:
+                # Original 1x logic (unchanged for backward compat)
+                pnl = (position.entry_price - exit_price) * position.quantity - commission
+                position.profit_loss = pnl
+                position.return_pct = (position.entry_price / exit_price - 1) * 100
+                entry_value = position.quantity * position.entry_price
+                capital = entry_value + pnl
 
         position.exit_time = candle.timestamp
         position.exit_price = exit_price
@@ -261,7 +373,7 @@ class StrategyEngine:
         position.status = "CLOSED"
         position.exit_reason = exit_reason
 
-        return capital
+        return max(capital, 0.0)  # Capital can't go negative
 
     def _check_sl_tp(self, position: Trade, candle: Candle,
                      stop_loss_pct: float,
