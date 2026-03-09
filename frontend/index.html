@@ -647,7 +647,8 @@ function renderParams(name) {
   const strategy = strategies.find(s => s.name === name);
   if (!strategy) return;
 
-  document.getElementById('strategy-desc').textContent = strategy.description;
+  const descKey = `strategy.desc.${strategy.name}`;
+  document.getElementById('strategy-desc').textContent = t(descKey, strategy.description);
   const container = document.getElementById('params');
   container.innerHTML = '';
 
@@ -655,8 +656,9 @@ function renderParams(name) {
     if (spec.type === 'str') return; // Skip string params for now
     const div = document.createElement('div');
     div.className = 'param-item';
+    const paramDescKey = `param.desc.${key}`;
     div.innerHTML = `
-      <label title="${spec.description || ''}">${key}</label>
+      <label title="${t(paramDescKey, spec.description || '')}">${key}</label>
       <input type="number" id="param-${key}" value="${spec.default}"
         min="${spec.min}" max="${spec.max}"
         step="${spec.type === 'float' ? '0.1' : '1'}">
@@ -721,8 +723,8 @@ async function runBacktest() {
   const btn = document.getElementById('run-btn');
   const statusEl = document.getElementById('status');
   btn.disabled = true;
-  btn.textContent = 'Running...';
-  statusEl.innerHTML = '<div class="status running"><span class="loading"></span> Fetching data & running backtest...</div>';
+  btn.textContent = t('btn.running', 'Running...');
+  statusEl.innerHTML = `<div class="status running"><span class="loading"></span> ${t('status.fetching', 'Fetching data & running backtest...')}</div>`;
 
   const strategyName = document.getElementById('strategy').value;
   const strategy = strategies.find(s => s.name === strategyName);
@@ -760,16 +762,16 @@ async function runBacktest() {
     if (result.error) throw new Error(result.error);
     if (result.status === 'error') throw new Error(result.error || 'Backtest failed');
 
-    statusEl.innerHTML = `<div class="status completed">Completed - ${result.metrics?.total_trades || 0} trades</div>`;
+    statusEl.innerHTML = `<div class="status completed">${tFormat('status.completed', result.metrics?.total_trades || 0)}</div>`;
     backtestHistory.unshift(result);
     displayResults(result);
     updateHistory();
 
   } catch(e) {
-    statusEl.innerHTML = `<div class="status error">Error: ${e.message}</div>`;
+    statusEl.innerHTML = `<div class="status error">${tFormat('status.error', e.message)}</div>`;
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Run Backtest';
+    btn.textContent = t('btn.run_backtest', 'Run Backtest');
   }
 }
 
@@ -783,22 +785,22 @@ function displayResults(result) {
 
   container.innerHTML = `
     <div class="metrics-grid">
-      ${metricCard('Total Return', `${m.total_return_pct}%`, m.total_return_pct >= 0)}
-      ${metricCard('Win Rate', `${m.win_rate}%`, m.win_rate >= 50)}
-      ${metricCard('Profit Factor', m.profit_factor, m.profit_factor >= 1)}
-      ${metricCard('Max Drawdown', `${m.max_drawdown_pct}%`, false)}
-      ${metricCard('Sharpe Ratio', m.sharpe_ratio, m.sharpe_ratio > 0)}
-      ${metricCard('Sortino Ratio', m.sortino_ratio, m.sortino_ratio > 0)}
-      ${metricCard('Total Trades', m.total_trades, null)}
-      ${metricCard('Avg Win', `${m.avg_win_pct}%`, true)}
-      ${metricCard('Avg Loss', `${m.avg_loss_pct}%`, false)}
-      ${metricCard('Max Consec Loss', m.max_consecutive_losses, null)}
-      ${metricCard('Avg Hold (hrs)', m.avg_holding_hours, null)}
-      ${metricCard('Final Equity', `$${(m.final_equity||0).toLocaleString()}`, m.total_return_pct >= 0)}
-      ${(m.long_trades != null || m.short_trades != null) ? metricCard('Long / Short Trades', `${m.long_trades || 0} / ${m.short_trades || 0}`, null) : ''}
-      ${((m.sl_exits || 0) > 0 || (m.tp_exits || 0) > 0) ? metricCard('SL / TP Exits', `${m.sl_exits || 0} / ${m.tp_exits || 0}`, null) : ''}
-      ${(m.short_trades || 0) > 0 ? metricCard('Long Win Rate', `${m.long_win_rate || 0}%`, (m.long_win_rate || 0) >= 50) : ''}
-      ${(m.short_trades || 0) > 0 ? metricCard('Short Win Rate', `${m.short_win_rate || 0}%`, (m.short_win_rate || 0) >= 50) : ''}
+      ${metricCard(t('metric.total_return'), `${m.total_return_pct}%`, m.total_return_pct >= 0)}
+      ${metricCard(t('metric.win_rate'), `${m.win_rate}%`, m.win_rate >= 50)}
+      ${metricCard(t('metric.profit_factor'), m.profit_factor, m.profit_factor >= 1)}
+      ${metricCard(t('metric.max_drawdown'), `${m.max_drawdown_pct}%`, false)}
+      ${metricCard(t('metric.sharpe'), m.sharpe_ratio, m.sharpe_ratio > 0)}
+      ${metricCard(t('metric.sortino'), m.sortino_ratio, m.sortino_ratio > 0)}
+      ${metricCard(t('metric.total_trades'), m.total_trades, null)}
+      ${metricCard(t('metric.avg_win'), `${m.avg_win_pct}%`, true)}
+      ${metricCard(t('metric.avg_loss'), `${m.avg_loss_pct}%`, false)}
+      ${metricCard(t('metric.max_consec_loss'), m.max_consecutive_losses, null)}
+      ${metricCard(t('metric.avg_hold'), m.avg_holding_hours, null)}
+      ${metricCard(t('metric.final_equity'), `$${(m.final_equity||0).toLocaleString()}`, m.total_return_pct >= 0)}
+      ${(m.long_trades != null || m.short_trades != null) ? metricCard(t('metric.long_short'), `${m.long_trades || 0} / ${m.short_trades || 0}`, null) : ''}
+      ${((m.sl_exits || 0) > 0 || (m.tp_exits || 0) > 0) ? metricCard(t('metric.sl_tp_exits'), `${m.sl_exits || 0} / ${m.tp_exits || 0}`, null) : ''}
+      ${(m.short_trades || 0) > 0 ? metricCard(t('metric.long_win_rate'), `${m.long_win_rate || 0}%`, (m.long_win_rate || 0) >= 50) : ''}
+      ${(m.short_trades || 0) > 0 ? metricCard(t('metric.short_win_rate'), `${m.short_win_rate || 0}%`, (m.short_win_rate || 0) >= 50) : ''}
     </div>
 
     <div class="chart-wrapper"><button class="btn-reset-zoom" onclick="resetZoom('chart-equity')">Reset Zoom</button><div id="chart-equity" class="chart-container"></div></div>
@@ -806,12 +808,12 @@ function displayResults(result) {
     <div class="chart-wrapper"><button class="btn-reset-zoom" onclick="resetZoom('chart-drawdown')">Reset Zoom</button><div id="chart-drawdown" class="chart-container"></div></div>
     <div class="chart-wrapper"><button class="btn-reset-zoom" onclick="resetZoom('chart-monthly')">Reset Zoom</button><div id="chart-monthly" class="chart-container"></div></div>
 
-    <h3 class="section-title">Trade Log (${(result.trades||[]).length} trades)</h3>
+    <h3 class="section-title">${tFormat('section.trade_log', (result.trades||[]).length)}</h3>
     <div class="chart-container" style="overflow-x:auto;">
       <table class="trades-table">
         <thead><tr>
-          <th>#</th><th>Entry</th><th>Exit</th><th>Entry Price</th><th>Exit Price</th>
-          <th>Return</th><th>P&L</th><th>Hold (hrs)</th><th>Reason</th>
+          <th>${t('table.num')}</th><th>${t('table.entry')}</th><th>${t('table.exit')}</th><th>${t('table.entry_price')}</th><th>${t('table.exit_price')}</th>
+          <th>${t('table.return')}</th><th>${t('table.pnl')}</th><th>${t('table.hold_hrs')}</th><th>${t('table.reason')}</th>
         </tr></thead>
         <tbody>
           ${(result.trades||[]).map((t,i) => `
@@ -928,7 +930,7 @@ async function deployPaperTrading() {
   const closeAllBtn = document.getElementById('close-all-btn');
 
   deployBtn.disabled = true;
-  deployBtn.textContent = 'Deploying...';
+  deployBtn.textContent = t('btn.deploying', 'Deploying...');
 
   const paperMode = document.querySelector('input[name="paper-mode"]:checked').value;
   const tickInterval = parseFloat(document.getElementById('tick-interval').value);
@@ -984,7 +986,7 @@ async function deployPaperTrading() {
     document.getElementById('paper-session-info').textContent = `Error: ${e.message}`;
   } finally {
     deployBtn.disabled = false;
-    deployBtn.textContent = 'Deploy Paper Trading';
+    deployBtn.textContent = t('btn.deploy_paper', 'Deploy Paper Trading');
   }
 }
 
@@ -993,7 +995,7 @@ async function stopPaperTrading() {
 
   const stopBtn = document.getElementById('stop-btn');
   stopBtn.disabled = true;
-  stopBtn.textContent = 'Stopping...';
+  stopBtn.textContent = t('btn.stopping', 'Stopping...');
 
   try {
     const resp = await fetch(`${API}/api/paper/${paperSessionId}/stop`, {
@@ -1010,7 +1012,7 @@ async function stopPaperTrading() {
   } catch(e) {
     console.error('Stop error:', e);
   } finally {
-    stopBtn.textContent = 'Stop Session';
+    stopBtn.textContent = t('btn.stop', 'Stop Session');
     // Button remains disabled after successful stop
   }
 }
@@ -1020,7 +1022,7 @@ async function closeAllPositions() {
 
   const closeBtn = document.getElementById('close-all-btn');
   closeBtn.disabled = true;
-  closeBtn.textContent = 'Closing...';
+  closeBtn.textContent = t('btn.closing', 'Closing...');
 
   try {
     const resp = await fetch(`${API}/api/paper/${paperSessionId}/close-all`, {
@@ -1037,7 +1039,7 @@ async function closeAllPositions() {
     console.error('Close all error:', e);
   } finally {
     closeBtn.disabled = false;
-    closeBtn.textContent = 'Close All Positions';
+    closeBtn.textContent = t('btn.close_all', 'Close All Positions');
   }
 }
 
@@ -1096,8 +1098,8 @@ function updateSessionStatusDisplay(status) {
   const infoEl = document.getElementById('paper-session-info');
   const config = status.config || {};
   infoEl.innerHTML = `
-    Strategy: ${config.strategy_name || '--'} | ${config.symbol || '--'}<br>
-    Candles: ${status.candles_processed || 0} | Signals: ${status.signals_generated || 0}
+    ${t('info.strategy')} ${config.strategy_name || '--'} | ${config.symbol || '--'}<br>
+    ${t('info.candles')} ${status.candles_processed || 0} | ${t('info.signals')} ${status.signals_generated || 0}
   `;
 
   // Update button states
@@ -1119,43 +1121,43 @@ function displayPaperResults(status, orders) {
   const realized = account.realized_pnl || 0;
 
   metricsEl.innerHTML = `
-    ${metricCard('Total Equity', '$' + equity.toLocaleString(undefined, {maximumFractionDigits:2}), null)}
-    ${metricCard('Available Cash', '$' + cash.toLocaleString(undefined, {maximumFractionDigits:2}), null)}
-    ${metricCard('Unrealized P&L', '$' + unrealized.toFixed(2), unrealized >= 0)}
-    ${metricCard('Realized P&L', '$' + realized.toFixed(2), realized >= 0)}
+    ${metricCard(t('metric.total_equity'), '$' + equity.toLocaleString(undefined, {maximumFractionDigits:2}), null)}
+    ${metricCard(t('metric.available_cash'), '$' + cash.toLocaleString(undefined, {maximumFractionDigits:2}), null)}
+    ${metricCard(t('metric.unrealized_pnl'), '$' + unrealized.toFixed(2), unrealized >= 0)}
+    ${metricCard(t('metric.realized_pnl'), '$' + realized.toFixed(2), realized >= 0)}
   `;
 
   // Position info
   const posContent = document.getElementById('paper-positions-content');
   if (positions.length === 0) {
-    posContent.innerHTML = '<div class="no-position">No open positions</div>';
+    posContent.innerHTML = `<div class="no-position">${t('empty.no_positions', 'No open positions')}</div>`;
   } else {
     posContent.innerHTML = positions.map(pos => {
       const pnlColor = (pos.unrealized_pnl || 0) >= 0 ? 'var(--green)' : 'var(--red)';
       return `
         <div class="position-details">
           <div class="position-detail">
-            <div class="detail-label">Symbol</div>
+            <div class="detail-label">${t('pos.symbol')}</div>
             <div class="detail-value">${pos.symbol || '--'}</div>
           </div>
           <div class="position-detail">
-            <div class="detail-label">Side</div>
+            <div class="detail-label">${t('pos.side')}</div>
             <div class="detail-value" style="color:${pos.side === 'LONG' ? 'var(--green)' : 'var(--red)'}">${pos.side || '--'}</div>
           </div>
           <div class="position-detail">
-            <div class="detail-label">Quantity</div>
+            <div class="detail-label">${t('pos.quantity')}</div>
             <div class="detail-value">${pos.quantity ?? '--'}</div>
           </div>
           <div class="position-detail">
-            <div class="detail-label">Entry Price</div>
+            <div class="detail-label">${t('pos.entry_price')}</div>
             <div class="detail-value">$${(pos.entry_price || 0).toLocaleString(undefined, {maximumFractionDigits:2})}</div>
           </div>
           <div class="position-detail">
-            <div class="detail-label">Unrealized P&L</div>
+            <div class="detail-label">${t('pos.unrealized_pnl')}</div>
             <div class="detail-value" style="color:${pnlColor}">$${(pos.unrealized_pnl || 0).toFixed(2)}</div>
           </div>
           <div class="position-detail">
-            <div class="detail-label">Status</div>
+            <div class="detail-label">${t('pos.status')}</div>
             <div class="detail-value">${pos.status || 'OPEN'}</div>
           </div>
         </div>
@@ -1167,7 +1169,7 @@ function displayPaperResults(status, orders) {
   const ordersBody = document.getElementById('paper-orders-body');
   const recentOrders = orders.slice(-10).reverse();
   if (recentOrders.length === 0) {
-    ordersBody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text2);padding:20px;">No orders yet</td></tr>';
+    ordersBody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text2);padding:20px;">${t('empty.no_orders', 'No orders yet')}</td></tr>`;
   } else {
     ordersBody.innerHTML = recentOrders.map(order => {
       const sideColor = (order.side === 'BUY') ? 'var(--green)' : 'var(--red)';
@@ -1195,11 +1197,11 @@ function renderPaperEquityCurve(equityData) {
     const darkLayout = getDarkLayout();
     Plotly.newPlot(chartEl, [], {
       ...darkLayout,
-      title: { text: 'Equity Curve', font: { color: '#e6edf3', size: 14 } },
-      xaxis: { ...darkLayout.xaxis, title: 'Time' },
+      title: { text: t('section.equity_curve'), font: { color: '#e6edf3', size: 14 } },
+      xaxis: { ...darkLayout.xaxis, title: t('table.time') },
       yaxis: { ...darkLayout.yaxis, title: 'Equity ($)' },
       annotations: [{
-        text: 'Waiting for data...',
+        text: t('status.waiting', 'Waiting for data...'),
         xref: 'paper', yref: 'paper',
         x: 0.5, y: 0.5,
         showarrow: false,
@@ -1226,8 +1228,8 @@ function renderPaperEquityCurve(equityData) {
   const darkLayout = getDarkLayout();
   const layout = {
     ...darkLayout,
-    title: { text: 'Equity Curve', font: { color: '#e6edf3', size: 14 } },
-    xaxis: { ...darkLayout.xaxis, title: 'Time' },
+    title: { text: t('section.equity_curve'), font: { color: '#e6edf3', size: 14 } },
+    xaxis: { ...darkLayout.xaxis, title: t('table.time') },
     yaxis: { ...darkLayout.yaxis, title: 'Equity ($)' },
     showlegend: false,
   };
@@ -1302,7 +1304,7 @@ async function deployLiveSession() {
   const closeAllBtn = document.getElementById('live-close-all-btn');
 
   deployBtn.disabled = true;
-  deployBtn.textContent = 'Deploying...';
+  deployBtn.textContent = t('btn.deploying', 'Deploying...');
 
   const strategyName = document.getElementById('strategy').value;
   const leverageMode = document.querySelector('input[name="live-leverage-mode"]:checked').value;
@@ -1364,7 +1366,7 @@ async function deployLiveSession() {
     document.getElementById('live-session-info').textContent = `Error: ${e.message}`;
   } finally {
     deployBtn.disabled = false;
-    deployBtn.textContent = 'Deploy Live Session';
+    deployBtn.textContent = t('btn.deploy_live', 'Deploy Live Session');
   }
 }
 
@@ -1373,7 +1375,7 @@ async function stopLiveSession() {
 
   const stopBtn = document.getElementById('live-stop-btn');
   stopBtn.disabled = true;
-  stopBtn.textContent = 'Stopping...';
+  stopBtn.textContent = t('btn.stopping', 'Stopping...');
 
   try {
     const resp = await fetch(`${API}/api/paper/${liveSessionId}/stop`, {
@@ -1390,7 +1392,7 @@ async function stopLiveSession() {
   } catch(e) {
     console.error('Live stop error:', e);
   } finally {
-    stopBtn.textContent = 'Stop Session';
+    stopBtn.textContent = t('btn.stop', 'Stop Session');
   }
 }
 
@@ -1399,7 +1401,7 @@ async function closeAllLivePositions() {
 
   const closeBtn = document.getElementById('live-close-all-btn');
   closeBtn.disabled = true;
-  closeBtn.textContent = 'Closing...';
+  closeBtn.textContent = t('btn.closing', 'Closing...');
 
   try {
     const resp = await fetch(`${API}/api/paper/${liveSessionId}/close-all`, {
@@ -1416,7 +1418,7 @@ async function closeAllLivePositions() {
     console.error('Live close all error:', e);
   } finally {
     closeBtn.disabled = false;
-    closeBtn.textContent = 'Emergency Close All';
+    closeBtn.textContent = t('btn.emergency_close', 'Emergency Close All');
   }
 }
 
@@ -1490,9 +1492,9 @@ function updateLiveStatusDisplay(status) {
   const infoEl = document.getElementById('live-session-info');
   const config = status.config || {};
   infoEl.innerHTML = `
-    Strategy: ${config.strategy_name || '--'} | ${config.symbol || '--'}<br>
-    Mode: Realtime | Interval: ${config.interval || '--'}<br>
-    Candles: ${status.candles_processed || 0} | Signals: ${status.signals_generated || 0}
+    ${t('info.strategy')} ${config.strategy_name || '--'} | ${config.symbol || '--'}<br>
+    ${t('info.mode_realtime')} ${config.interval || '--'}<br>
+    ${t('info.candles')} ${status.candles_processed || 0} | ${t('info.signals')} ${status.signals_generated || 0}
   `;
 
   // Update button states
@@ -1527,22 +1529,22 @@ function renderLiveMetrics(status) {
   const uptime = formatUptime(liveDeployTimestamp);
 
   metricsEl.innerHTML = `
-    ${metricCard('Session State', `<span class="state-badge ${status.state || 'stopped'}">${status.state || '--'}</span>`, null)}
-    ${metricCard('Strategy', config.strategy_name || '--', null)}
-    ${metricCard('Uptime', uptime, null)}
-    ${metricCard('Total Equity', '$' + equity.toLocaleString(undefined, {maximumFractionDigits:2}), null)}
-    ${metricCard('Available Cash', '$' + cash.toLocaleString(undefined, {maximumFractionDigits:2}), null)}
-    ${metricCard('Unrealized P&L', '$' + unrealized.toFixed(2), unrealized >= 0)}
-    ${metricCard('Realized P&L', '$' + realized.toFixed(2), realized >= 0)}
-    ${metricCard('Leverage', `<span class="leverage-badge">${leverageMode === 'fixed' ? leverage + 'x Fixed' : 'Max ' + leverage + 'x'}</span>`, null)}
-    ${metricCard('Position', (status.open_positions || []).length > 0 ? (status.open_positions[0].side || 'OPEN') : 'FLAT', (status.open_positions || []).length > 0 ? null : null)}
+    ${metricCard(t('metric.session_state'), `<span class="state-badge ${status.state || 'stopped'}">${status.state || '--'}</span>`, null)}
+    ${metricCard(t('metric.strategy'), config.strategy_name || '--', null)}
+    ${metricCard(t('metric.uptime'), uptime, null)}
+    ${metricCard(t('metric.total_equity'), '$' + equity.toLocaleString(undefined, {maximumFractionDigits:2}), null)}
+    ${metricCard(t('metric.available_cash'), '$' + cash.toLocaleString(undefined, {maximumFractionDigits:2}), null)}
+    ${metricCard(t('metric.unrealized_pnl'), '$' + unrealized.toFixed(2), unrealized >= 0)}
+    ${metricCard(t('metric.realized_pnl'), '$' + realized.toFixed(2), realized >= 0)}
+    ${metricCard(t('metric.leverage'), `<span class="leverage-badge">${leverageMode === 'fixed' ? leverage + 'x Fixed' : 'Max ' + leverage + 'x'}</span>`, null)}
+    ${metricCard(t('metric.position'), (status.open_positions || []).length > 0 ? (status.open_positions[0].side || 'OPEN') : 'FLAT', (status.open_positions || []).length > 0 ? null : null)}
   `;
 }
 
 function renderLivePositions(positions) {
   const posContent = document.getElementById('live-positions-content');
   if (!positions || positions.length === 0) {
-    posContent.innerHTML = '<div class="no-position">No open positions</div>';
+    posContent.innerHTML = `<div class="no-position">${t('empty.no_positions', 'No open positions')}</div>`;
     return;
   }
 
@@ -1551,19 +1553,19 @@ function renderLivePositions(positions) {
     return `
       <div class="position-details">
         <div class="position-detail">
-          <div class="detail-label">Symbol</div>
+          <div class="detail-label">${t('pos.symbol')}</div>
           <div class="detail-value">${pos.symbol || '--'}</div>
         </div>
         <div class="position-detail">
-          <div class="detail-label">Side</div>
+          <div class="detail-label">${t('pos.side')}</div>
           <div class="detail-value" style="color:${pos.side === 'LONG' ? 'var(--green)' : 'var(--red)'}">${pos.side || '--'}</div>
         </div>
         <div class="position-detail">
-          <div class="detail-label">Quantity</div>
+          <div class="detail-label">${t('pos.quantity')}</div>
           <div class="detail-value">${pos.quantity ?? '--'}</div>
         </div>
         <div class="position-detail">
-          <div class="detail-label">Entry Price</div>
+          <div class="detail-label">${t('pos.entry_price')}</div>
           <div class="detail-value">$${(pos.entry_price || 0).toLocaleString(undefined, {maximumFractionDigits:2})}</div>
         </div>
         <div class="position-detail">
@@ -1571,15 +1573,15 @@ function renderLivePositions(positions) {
           <div class="detail-value">$${(pos.current_price || pos.mark_price || 0).toLocaleString(undefined, {maximumFractionDigits:2})}</div>
         </div>
         <div class="position-detail">
-          <div class="detail-label">Unrealized P&L</div>
+          <div class="detail-label">${t('pos.unrealized_pnl')}</div>
           <div class="detail-value" style="color:${pnlColor}">$${(pos.unrealized_pnl || 0).toFixed(2)}</div>
         </div>
         <div class="position-detail">
-          <div class="detail-label">Leverage</div>
+          <div class="detail-label">${t('metric.leverage')}</div>
           <div class="detail-value"><span class="leverage-badge">${pos.leverage || 1}x</span></div>
         </div>
         <div class="position-detail">
-          <div class="detail-label">Status</div>
+          <div class="detail-label">${t('pos.status')}</div>
           <div class="detail-value">${pos.status || 'OPEN'}</div>
         </div>
       </div>
@@ -1592,7 +1594,7 @@ function renderLiveOrders(orders) {
   const recentOrders = (orders || []).slice(-20).reverse();
 
   if (recentOrders.length === 0) {
-    ordersBody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:20px;">No orders yet</td></tr>';
+    ordersBody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:20px;">${t('empty.no_orders', 'No orders yet')}</td></tr>`;
     return;
   }
 
@@ -1624,11 +1626,11 @@ function renderLiveEquityChart(curveData) {
     const darkLayout = getDarkLayout();
     Plotly.newPlot(chartEl, [], {
       ...darkLayout,
-      title: { text: 'Live Equity Curve', font: { color: '#e6edf3', size: 14 } },
-      xaxis: { ...darkLayout.xaxis, title: 'Time' },
+      title: { text: t('section.live_equity'), font: { color: '#e6edf3', size: 14 } },
+      xaxis: { ...darkLayout.xaxis, title: t('table.time') },
       yaxis: { ...darkLayout.yaxis, title: 'Equity ($)' },
       annotations: [{
-        text: 'Waiting for data...',
+        text: t('status.waiting', 'Waiting for data...'),
         xref: 'paper', yref: 'paper',
         x: 0.5, y: 0.5,
         showarrow: false,
@@ -1658,8 +1660,8 @@ function renderLiveEquityChart(curveData) {
   const darkLayout = getDarkLayout();
   const layout = {
     ...darkLayout,
-    title: { text: 'Live Equity Curve', font: { color: '#e6edf3', size: 14 } },
-    xaxis: { ...darkLayout.xaxis, title: 'Time' },
+    title: { text: t('section.live_equity'), font: { color: '#e6edf3', size: 14 } },
+    xaxis: { ...darkLayout.xaxis, title: t('table.time') },
     yaxis: { ...darkLayout.yaxis, title: 'Equity ($)' },
     showlegend: false,
   };
