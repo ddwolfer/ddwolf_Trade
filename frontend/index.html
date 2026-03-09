@@ -274,41 +274,44 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
       <div id="params" class="params-grid"></div>
     </div>
 
-    <div class="form-row">
-      <div class="form-group">
-        <label>Interval</label>
-        <select id="interval">
-          <option value="15m">15m</option>
-          <option value="1h" selected>1h</option>
-          <option value="4h">4h</option>
-          <option value="1d">1d</option>
-        </select>
+    <!-- Backtest/Paper shared fields (hidden in Live mode) -->
+    <div id="backtest-shared-fields">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Interval</label>
+          <select id="interval">
+            <option value="15m">15m</option>
+            <option value="1h" selected>1h</option>
+            <option value="4h">4h</option>
+            <option value="1d">1d</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Capital (USD)</label>
+          <input type="number" id="capital" value="10000" min="100">
+        </div>
       </div>
-      <div class="form-group">
-        <label>Capital (USD)</label>
-        <input type="number" id="capital" value="10000" min="100">
-      </div>
-    </div>
 
-    <div class="form-row">
-      <div class="form-group">
-        <label>Start Date</label>
-        <input type="date" id="start-date" value="2024-01-01">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Start Date</label>
+          <input type="date" id="start-date" value="2024-01-01">
+        </div>
+        <div class="form-group">
+          <label>End Date</label>
+          <input type="date" id="end-date" value="2025-01-01">
+        </div>
       </div>
-      <div class="form-group">
-        <label>End Date</label>
-        <input type="date" id="end-date" value="2025-01-01">
-      </div>
-    </div>
 
-    <div class="form-row">
-      <div class="form-group">
-        <label>Stop Loss % <span style="font-size:11px;color:var(--text2);font-weight:400;">(0 = disabled)</span></label>
-        <input type="number" id="stopLossPct" value="0" min="0" max="50" step="0.5">
-      </div>
-      <div class="form-group">
-        <label>Take Profit % <span style="font-size:11px;color:var(--text2);font-weight:400;">(0 = disabled)</span></label>
-        <input type="number" id="takeProfitPct" value="0" min="0" max="100" step="0.5">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Stop Loss % <span style="font-size:11px;color:var(--text2);font-weight:400;">(0 = disabled)</span></label>
+          <input type="number" id="stopLossPct" value="0" min="0" max="50" step="0.5">
+        </div>
+        <div class="form-group">
+          <label>Take Profit % <span style="font-size:11px;color:var(--text2);font-weight:400;">(0 = disabled)</span></label>
+          <input type="number" id="takeProfitPct" value="0" min="0" max="100" step="0.5">
+        </div>
       </div>
     </div>
 
@@ -593,6 +596,9 @@ function toggleMode(mode) {
   document.getElementById('mode-paper').classList.toggle('active', mode === 'paper');
   document.getElementById('mode-live').classList.toggle('active', mode === 'live');
 
+  // Hide backtest-specific shared fields in Live mode
+  document.getElementById('backtest-shared-fields').style.display = mode === 'live' ? 'none' : 'block';
+
   // Toggle sidebar controls
   document.getElementById('backtest-controls').style.display = mode === 'backtest' ? 'block' : 'none';
   const paperControls = document.getElementById('paper-controls');
@@ -620,8 +626,13 @@ function toggleMode(mode) {
     (mode === 'backtest' && backtestHistory.length > 0) ? 'block' : 'none';
 
   // Manage live polling based on mode
-  if (mode === 'live' && liveSessionId) {
-    startLivePolling();
+  if (mode === 'live') {
+    if (liveSessionId) {
+      startLivePolling();
+    } else {
+      // Auto-detect running sessions
+      recoverLiveSession();
+    }
   } else {
     stopLivePolling();
   }
@@ -1162,6 +1173,45 @@ function stopPaperPolling() {
 
 // === Live Monitor Functions ===
 
+async function recoverLiveSession() {
+  try {
+    const resp = await fetch(`${API}/api/paper`);
+    const data = await resp.json();
+    const sessions = data.sessions || [];
+
+    // Find running realtime sessions
+    const running = sessions.filter(s =>
+      s.state === 'running' && s.config && s.config.mode === 'realtime'
+    );
+
+    if (running.length > 0) {
+      const session = running[0];
+      liveSessionId = session.session_id;
+      liveDeployTimestamp = Date.now();
+
+      // Restore UI state
+      document.getElementById('live-session-status-display').style.display = 'block';
+      document.getElementById('live-session-id').textContent = liveSessionId;
+      document.getElementById('live-empty-state').style.display = 'none';
+      document.getElementById('live-results-content').style.display = 'block';
+      document.getElementById('live-stop-btn').disabled = false;
+      document.getElementById('live-close-all-btn').disabled = false;
+      document.getElementById('live-deploy-btn').disabled = true;
+
+      // Restore sidebar strategy/params display
+      if (session.config) {
+        document.getElementById('strategy').value = session.config.strategy_name || 'RSI';
+        renderParams(session.config.strategy_name);
+      }
+
+      startLivePolling();
+      console.log(`Recovered live session: ${liveSessionId}`);
+    }
+  } catch(e) {
+    console.warn('Failed to recover live session:', e);
+  }
+}
+
 function toggleLeverageMode() {
   const mode = document.querySelector('input[name="live-leverage-mode"]:checked').value;
   document.getElementById('live-fixed-leverage-group').style.display =
@@ -1326,11 +1376,14 @@ async function pollLiveData() {
     }
 
     // Fetch equity curve
-    let equityData = [];
+    let equityCurveData = { equity_curve: [], timestamps: [] };
     try {
       const equityResp = await fetch(`${API}/api/paper/${liveSessionId}/equity`);
       const equityResult = await equityResp.json();
-      equityData = equityResult.equity_curve || [];
+      equityCurveData = {
+        equity_curve: equityResult.equity_curve || [],
+        timestamps: equityResult.timestamps || [],
+      };
     } catch(e) {
       console.warn('Failed to fetch live equity:', e);
     }
@@ -1339,7 +1392,7 @@ async function pollLiveData() {
     renderLiveMetrics(status);
     renderLivePositions(positions);
     renderLiveOrders(orders);
-    renderLiveEquityChart(equityData);
+    renderLiveEquityChart(equityCurveData);
 
     // If session ended, stop polling
     if (status.state === 'completed' || status.state === 'stopped' || status.state === 'error') {
@@ -1474,8 +1527,8 @@ function renderLiveOrders(orders) {
       <tr>
         <td style="font-size:11px;">${timeStr}</td>
         <td style="color:${sideColor};font-weight:600;">${order.side || '--'}</td>
-        <td>${order.quantity ?? '--'}</td>
-        <td>$${(order.price || 0).toLocaleString(undefined, {maximumFractionDigits:2})}</td>
+        <td>${order.filled_quantity ? order.filled_quantity.toFixed(6) : (order.quantity || '--')}</td>
+        <td>$${(order.avg_fill_price || order.price || 0).toLocaleString(undefined, {maximumFractionDigits:2})}</td>
         <td><span class="leverage-badge">${order.leverage || 1}x</span></td>
         <td><span class="tag ${order.status === 'FILLED' ? 'win' : ''}">${order.status || '--'}</span></td>
         <td style="font-size:12px;color:var(--text2);">${order.commission != null ? '$' + order.commission.toFixed(4) : '--'}</td>
@@ -1484,10 +1537,12 @@ function renderLiveOrders(orders) {
   }).join('');
 }
 
-function renderLiveEquityChart(equityData) {
+function renderLiveEquityChart(curveData) {
   const chartEl = document.getElementById('live-equity-chart');
+  const equities = curveData.equity_curve || [];
+  const timestamps = curveData.timestamps || [];
 
-  if (!equityData || equityData.length === 0) {
+  if (!equities.length) {
     const darkLayout = getDarkLayout();
     Plotly.newPlot(chartEl, [], {
       ...darkLayout,
@@ -1505,11 +1560,14 @@ function renderLiveEquityChart(equityData) {
     return;
   }
 
-  const timestamps = equityData.map(d => d.timestamp || d.time || d[0]);
-  const equities = equityData.map(d => d.equity || d.total_equity || d[1]);
+  // Convert ms timestamps to readable date strings
+  const timeLabels = timestamps.map(t => {
+    const d = new Date(t);
+    return d.toLocaleTimeString();
+  });
 
   const trace = {
-    x: timestamps,
+    x: timeLabels,
     y: equities,
     type: 'scatter',
     mode: 'lines',
@@ -1533,6 +1591,7 @@ function renderLiveEquityChart(equityData) {
 
 function startLivePolling() {
   stopLivePolling();
+  pollLiveData();  // Immediate first poll
   livePollingInterval = setInterval(() => {
     pollLiveData();
   }, 10000);
