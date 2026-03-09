@@ -82,11 +82,18 @@ class PaperTradingAdapter(ExchangeAdapter):
         quantity: float,
         price: float = 0.0,
         reason: str = "",
+        leverage: float = 1.0,
+        maintenance_margin_rate: float = 0.005,
     ) -> LiveOrder:
         """
         Place and immediately fill a MARKET order.
 
         Supported sides: BUY, SELL, SHORT_OPEN, SHORT_CLOSE
+
+        When leverage > 1.0 and quantity == 0 (auto-size), the position
+        is sized using leveraged capital: qty = (cash * leverage) / price.
+        Margin tracking, liquidation price, and funding fields are set
+        on the resulting Position.
         """
         with self._lock:
             now_ms = int(time.time() * 1000)
@@ -110,11 +117,11 @@ class PaperTradingAdapter(ExchangeAdapter):
                 if pos is not None and pos.status == "OPEN" and pos.side == "SHORT":
                     order = self._fill_short_close(order, now_ms)
                 else:
-                    order = self._fill_buy(order, now_ms)
+                    order = self._fill_buy(order, now_ms, leverage, maintenance_margin_rate)
             elif side_upper == "SELL":
                 order = self._fill_sell(order, now_ms)
             elif side_upper == "SHORT_OPEN":
-                order = self._fill_short_open(order, now_ms)
+                order = self._fill_short_open(order, now_ms, leverage, maintenance_margin_rate)
             elif side_upper == "SHORT_CLOSE":
                 order = self._fill_short_close(order, now_ms)
             else:
@@ -128,7 +135,9 @@ class PaperTradingAdapter(ExchangeAdapter):
     # Internal fill helpers (must be called while holding _lock)
     # ------------------------------------------------------------------
 
-    def _fill_buy(self, order: LiveOrder, now_ms: int) -> LiveOrder:
+    def _fill_buy(self, order: LiveOrder, now_ms: int,
+                  leverage: float = 1.0,
+                  maintenance_margin_rate: float = 0.005) -> LiveOrder:
         """Execute a MARKET BUY order (open LONG)."""
         symbol = order.symbol
 
@@ -140,51 +149,104 @@ class PaperTradingAdapter(ExchangeAdapter):
 
         fill_price = current_price * (1 + self.slippage_rate)
         quantity = order.quantity
-        cost = fill_price * quantity
-        commission = cost * self.commission_rate
-        total_cost = cost + commission
 
-        # Adjust quantity down if insufficient cash
-        if total_cost > self._cash:
-            available = self._cash / (1 + self.commission_rate)
-            quantity = available / fill_price
+        if leverage > 1.0:
+            # --- Leveraged position ---
+            if quantity == 0:
+                quantity = (self._cash * leverage) / fill_price
+
+            margin = self._cash
+            commission = fill_price * quantity * self.commission_rate
+            if commission > margin:
+                order.status = "REJECTED"
+                order.reason = "Insufficient funds for commission"
+                return order
+            self._cash = 0.0  # All cash used as margin (minus commission)
+
+            # Liquidation price for LONG:
+            # liq = fill_price * (1 - 1/leverage + mmr)
+            liq_price = fill_price * (1.0 - 1.0 / leverage + maintenance_margin_rate)
+
+            existing_pos = self._positions.get(symbol)
+            if existing_pos is not None and existing_pos.status == "OPEN" and existing_pos.side == "LONG":
+                old_qty = existing_pos.quantity
+                new_qty = old_qty + quantity
+                existing_pos.entry_price = (
+                    (existing_pos.entry_price * old_qty + fill_price * quantity) / new_qty
+                )
+                existing_pos.quantity = new_qty
+                existing_pos.unrealized_pnl = (
+                    (current_price - existing_pos.entry_price) * existing_pos.quantity
+                )
+                existing_pos.leverage = leverage
+                existing_pos.margin_used = margin
+                existing_pos.liquidation_price = liq_price
+            else:
+                pos = Position(
+                    session_id=self.session_id,
+                    symbol=symbol,
+                    side="LONG",
+                    quantity=quantity,
+                    entry_price=fill_price,
+                    entry_time=now_ms,
+                    status="OPEN",
+                    entry_order_id=order.order_id,
+                    unrealized_pnl=(current_price - fill_price) * quantity,
+                    leverage=leverage,
+                    margin_used=margin,
+                    liquidation_price=liq_price,
+                )
+                self._positions[symbol] = pos
+        else:
+            # --- 1x (existing behavior) ---
+            # Auto-size: if quantity is 0, use all available cash
+            if quantity == 0:
+                available = self._cash / (1 + self.commission_rate)
+                quantity = available / fill_price
+
             cost = fill_price * quantity
             commission = cost * self.commission_rate
             total_cost = cost + commission
 
-        if quantity <= 0:
-            order.status = "REJECTED"
-            order.reason = "Insufficient funds"
-            return order
+            # Adjust quantity down if insufficient cash
+            if total_cost > self._cash:
+                available = self._cash / (1 + self.commission_rate)
+                quantity = available / fill_price
+                cost = fill_price * quantity
+                commission = cost * self.commission_rate
+                total_cost = cost + commission
 
-        self._cash -= total_cost
+            if quantity <= 0:
+                order.status = "REJECTED"
+                order.reason = "Insufficient funds"
+                return order
 
-        # Create or update position
-        existing_pos = self._positions.get(symbol)
-        if existing_pos is not None and existing_pos.status == "OPEN" and existing_pos.side == "LONG":
-            # Average into existing LONG position
-            old_qty = existing_pos.quantity
-            new_qty = old_qty + quantity
-            existing_pos.entry_price = (
-                (existing_pos.entry_price * old_qty + fill_price * quantity) / new_qty
-            )
-            existing_pos.quantity = new_qty
-            existing_pos.unrealized_pnl = (
-                (current_price - existing_pos.entry_price) * existing_pos.quantity
-            )
-        else:
-            pos = Position(
-                session_id=self.session_id,
-                symbol=symbol,
-                side="LONG",
-                quantity=quantity,
-                entry_price=fill_price,
-                entry_time=now_ms,
-                status="OPEN",
-                entry_order_id=order.order_id,
-                unrealized_pnl=(current_price - fill_price) * quantity,
-            )
-            self._positions[symbol] = pos
+            self._cash -= total_cost
+
+            existing_pos = self._positions.get(symbol)
+            if existing_pos is not None and existing_pos.status == "OPEN" and existing_pos.side == "LONG":
+                old_qty = existing_pos.quantity
+                new_qty = old_qty + quantity
+                existing_pos.entry_price = (
+                    (existing_pos.entry_price * old_qty + fill_price * quantity) / new_qty
+                )
+                existing_pos.quantity = new_qty
+                existing_pos.unrealized_pnl = (
+                    (current_price - existing_pos.entry_price) * existing_pos.quantity
+                )
+            else:
+                pos = Position(
+                    session_id=self.session_id,
+                    symbol=symbol,
+                    side="LONG",
+                    quantity=quantity,
+                    entry_price=fill_price,
+                    entry_time=now_ms,
+                    status="OPEN",
+                    entry_order_id=order.order_id,
+                    unrealized_pnl=(current_price - fill_price) * quantity,
+                )
+                self._positions[symbol] = pos
 
         order.status = "FILLED"
         order.filled_quantity = quantity
@@ -242,7 +304,9 @@ class PaperTradingAdapter(ExchangeAdapter):
         order.filled_time = now_ms
         return order
 
-    def _fill_short_open(self, order: LiveOrder, now_ms: int) -> LiveOrder:
+    def _fill_short_open(self, order: LiveOrder, now_ms: int,
+                         leverage: float = 1.0,
+                         maintenance_margin_rate: float = 0.005) -> LiveOrder:
         """Execute a SHORT_OPEN order (open SHORT position)."""
         symbol = order.symbol
 
@@ -255,28 +319,62 @@ class PaperTradingAdapter(ExchangeAdapter):
         # SHORT: sell borrowed asset at slippage-adjusted price
         fill_price = current_price * (1 - self.slippage_rate)
         quantity = order.quantity
-        commission = fill_price * quantity * self.commission_rate
 
-        # Adjust quantity if commission exceeds available cash
-        if commission > self._cash:
-            order.status = "REJECTED"
-            order.reason = "Insufficient funds for commission"
-            return order
+        if leverage > 1.0:
+            # --- Leveraged SHORT ---
+            if quantity == 0:
+                quantity = (self._cash * leverage) / fill_price
 
-        self._cash -= commission
+            margin = self._cash
+            commission = fill_price * quantity * self.commission_rate
+            if commission > margin:
+                order.status = "REJECTED"
+                order.reason = "Insufficient funds for commission"
+                return order
+            self._cash = 0.0  # All cash used as margin
 
-        pos = Position(
-            session_id=self.session_id,
-            symbol=symbol,
-            side="SHORT",
-            quantity=quantity,
-            entry_price=fill_price,
-            entry_time=now_ms,
-            status="OPEN",
-            entry_order_id=order.order_id,
-            unrealized_pnl=(fill_price - current_price) * quantity,
-        )
-        self._positions[symbol] = pos
+            # Liquidation price for SHORT:
+            # liq = fill_price * (1 + 1/leverage - mmr)
+            liq_price = fill_price * (1.0 + 1.0 / leverage - maintenance_margin_rate)
+
+            pos = Position(
+                session_id=self.session_id,
+                symbol=symbol,
+                side="SHORT",
+                quantity=quantity,
+                entry_price=fill_price,
+                entry_time=now_ms,
+                status="OPEN",
+                entry_order_id=order.order_id,
+                unrealized_pnl=(fill_price - current_price) * quantity,
+                leverage=leverage,
+                margin_used=margin,
+                liquidation_price=liq_price,
+            )
+            self._positions[symbol] = pos
+        else:
+            # --- 1x SHORT (existing behavior) ---
+            commission = fill_price * quantity * self.commission_rate
+
+            if commission > self._cash:
+                order.status = "REJECTED"
+                order.reason = "Insufficient funds for commission"
+                return order
+
+            self._cash -= commission
+
+            pos = Position(
+                session_id=self.session_id,
+                symbol=symbol,
+                side="SHORT",
+                quantity=quantity,
+                entry_price=fill_price,
+                entry_time=now_ms,
+                status="OPEN",
+                entry_order_id=order.order_id,
+                unrealized_pnl=(fill_price - current_price) * quantity,
+            )
+            self._positions[symbol] = pos
 
         order.status = "FILLED"
         order.filled_quantity = quantity
@@ -410,6 +508,53 @@ class PaperTradingAdapter(ExchangeAdapter):
                 realized_pnl=self._realized_pnl,
                 timestamp=int(time.time() * 1000),
             )
+
+    # ------------------------------------------------------------------
+    # Leverage: liquidation + funding
+    # ------------------------------------------------------------------
+
+    def check_liquidation(self, symbol: str, candle) -> bool:
+        """Check if position should be liquidated. Returns True if liquidated."""
+        with self._lock:
+            pos = self._positions.get(symbol)
+            if (not pos or pos.status != "OPEN"
+                    or pos.leverage <= 1.0 or pos.liquidation_price <= 0):
+                return False
+
+            triggered = False
+            if pos.side == "LONG" and candle.low <= pos.liquidation_price:
+                triggered = True
+            elif pos.side == "SHORT" and candle.high >= pos.liquidation_price:
+                triggered = True
+
+            if triggered:
+                self._liquidate(symbol, pos)
+                return True
+            return False
+
+    def _liquidate(self, symbol: str, pos: Position) -> None:
+        """Execute liquidation -- margin is lost. Must be called while holding _lock."""
+        pos.exit_price = pos.liquidation_price
+        pos.exit_time = int(time.time() * 1000)
+        pos.realized_pnl = -pos.margin_used
+        pos.unrealized_pnl = 0.0
+        pos.status = "CLOSED"
+        pos.quantity = 0.0
+        self._closed_positions.append(pos)
+        del self._positions[symbol]
+        self._cash = 0.0
+
+    def apply_funding(self, symbol: str, current_price: float,
+                      funding_rate: float) -> float:
+        """Apply funding rate to position. Returns cost deducted."""
+        with self._lock:
+            pos = self._positions.get(symbol)
+            if not pos or pos.status != "OPEN" or pos.leverage <= 1.0:
+                return 0.0
+            cost = pos.quantity * current_price * funding_rate
+            pos.funding_paid += cost
+            self._cash -= cost
+            return cost
 
     # ------------------------------------------------------------------
     # Emergency close

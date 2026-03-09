@@ -24,6 +24,8 @@ class ExchangeAdapter(ABC):
         quantity: float,
         price: float = 0.0,  # ignored for MARKET
         reason: str = "",
+        leverage: float = 1.0,
+        maintenance_margin_rate: float = 0.005,
     ) -> LiveOrder:
         """Submit an order. Returns the order with status set."""
         pass
