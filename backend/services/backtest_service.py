@@ -48,6 +48,8 @@ def run_backtest(config: BacktestConfig) -> BacktestResult:
             ohlcv, strategy, config.initial_capital,
             stop_loss_pct=config.stop_loss_pct,
             take_profit_pct=config.take_profit_pct,
+            trailing_stop_atr_period=config.trailing_stop_atr_period,
+            trailing_stop_atr_mult=config.trailing_stop_atr_mult,
         )
 
         # 4. Calculate metrics

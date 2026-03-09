@@ -18,6 +18,7 @@ from models import BacktestConfig
 from services import backtest_service
 from services.report_service import generate_charts
 from services.data_service import fetch_klines
+from services.regime_service import detect_regime
 
 # Import strategies to trigger registration
 from strategies import rsi_strategy, macd_strategy, bollinger_strategy, ma_cross_strategy, momentum_strategy, confluence_strategy, supertrend_strategy, volume_breakout_strategy, trend_rider_strategy, bear_hunter_strategy
@@ -164,6 +165,17 @@ class BacktestHandler(SimpleHTTPRequestHandler):
             else:
                 self._send_json({"error": "Not found"}, 404)
 
+        # GET /api/regime/{symbol}
+        elif path.startswith("/api/regime/"):
+            symbol = path.split("/")[-1]
+            tf_param = params.get("timeframes", ["1h,4h,1d"])[0]
+            timeframes = [t.strip() for t in tf_param.split(",")]
+            try:
+                result = detect_regime(symbol, timeframes)
+                self._send_json(result)
+            except Exception as e:
+                self._send_json({"error": str(e)}, 400)
+
         # GET /api/data/{symbol}
         elif path.startswith("/api/data/"):
             symbol = path.split("/")[-1]
@@ -240,6 +252,8 @@ class BacktestHandler(SimpleHTTPRequestHandler):
                     slippage_rate=float(data.get("slippage_rate", 0.0005)),
                     stop_loss_pct=float(data.get("stop_loss_pct", 0)),
                     take_profit_pct=float(data.get("take_profit_pct", 0)),
+                    trailing_stop_atr_period=int(data.get("trailing_stop_atr_period", 0)),
+                    trailing_stop_atr_mult=float(data.get("trailing_stop_atr_mult", 3.0)),
                 )
 
                 # Run synchronously for simplicity (most backtests are fast)
@@ -265,6 +279,8 @@ class BacktestHandler(SimpleHTTPRequestHandler):
                         strategy_params=cfg_data.get("strategy_params", {}),
                         stop_loss_pct=float(cfg_data.get("stop_loss_pct", 0)),
                         take_profit_pct=float(cfg_data.get("take_profit_pct", 0)),
+                        trailing_stop_atr_period=int(cfg_data.get("trailing_stop_atr_period", 0)),
+                        trailing_stop_atr_mult=float(cfg_data.get("trailing_stop_atr_mult", 3.0)),
                     )
                     result = backtest_service.run_backtest(config)
                     results.append({

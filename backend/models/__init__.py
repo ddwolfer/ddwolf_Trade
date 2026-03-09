@@ -85,6 +85,8 @@ class BacktestConfig:
     slippage_rate: float = 0.0005  # 0.05%
     stop_loss_pct: float = 0.0  # 0 = disabled. e.g. 5.0 = exit if price moves 5% against position
     take_profit_pct: float = 0.0  # 0 = disabled. e.g. 10.0 = exit if price moves 10% in favor
+    trailing_stop_atr_period: int = 0  # 0 = disabled, e.g. 14
+    trailing_stop_atr_mult: float = 3.0  # ATR x mult = trailing distance
 
 
 @dataclass
