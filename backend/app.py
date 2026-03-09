@@ -318,6 +318,14 @@ class BacktestHandler(SimpleHTTPRequestHandler):
                     data_end_date=data.get("data_end_date", "2025-01-01"),
                     tick_interval_seconds=float(data.get("tick_interval_seconds", 1.0)),
                     mode=data.get("mode", "simulated"),
+                    # Leverage params
+                    max_leverage=float(data.get("max_leverage", 10.0)),
+                    leverage_mode=data.get("leverage_mode", "dynamic"),
+                    fixed_leverage=float(data.get("fixed_leverage", 1.0)),
+                    funding_rate=float(data.get("funding_rate", 0.0001)),
+                    maintenance_margin_rate=float(data.get("maintenance_margin_rate", 0.005)),
+                    stop_loss_pct=float(data.get("stop_loss_pct", 0.0)),
+                    take_profit_pct=float(data.get("take_profit_pct", 0.0)),
                 )
                 result = _session_manager.deploy(config)
                 self._send_json(result)
