@@ -207,6 +207,31 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   font-size:14px; color:var(--text2); margin-bottom:12px;
   text-transform:uppercase; letter-spacing:.5px; font-weight:500;
 }
+
+/* Live Monitor Controls */
+.live-controls { display:none; }
+.live-controls.visible { display:block; }
+
+/* Live Monitor Results Panel */
+.live-results { display:none; }
+.live-results.visible { display:block; }
+
+.live-empty-state { text-align:center; padding:60px 20px; color:var(--text2); }
+.live-empty-state h2 { font-size:24px; margin-bottom:8px; color:var(--text); }
+
+.live-metrics-grid {
+  display:grid; grid-template-columns:repeat(3, 1fr);
+  gap:12px; margin-bottom:20px;
+}
+
+.live-uptime {
+  font-size:11px; color:var(--text2); margin-top:2px;
+}
+
+.leverage-badge {
+  display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px;
+  font-weight:600; background:rgba(188,140,255,0.2); color:var(--purple);
+}
 </style>
 </head>
 <body>
@@ -219,6 +244,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     <div class="mode-toggle">
       <button id="mode-backtest" class="active" onclick="toggleMode('backtest')">Backtest</button>
       <button id="mode-paper" onclick="toggleMode('paper')">Paper Trading</button>
+      <button id="mode-live" onclick="toggleMode('live')">Live</button>
     </div>
 
     <div class="form-group">
@@ -327,6 +353,73 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
       </div>
     </div>
 
+    <!-- Live Monitor Controls -->
+    <div id="live-controls" class="live-controls">
+      <div class="form-group">
+        <label>Interval</label>
+        <select id="live-interval">
+          <option value="1m">1m</option>
+          <option value="5m">5m</option>
+          <option value="15m" selected>15m</option>
+          <option value="1h">1h</option>
+          <option value="4h">4h</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Capital (USD)</label>
+        <input type="number" id="live-capital" value="10000" min="100">
+      </div>
+
+      <div class="radio-group">
+        <label>Leverage Mode</label><br>
+        <label class="radio-label">
+          <input type="radio" name="live-leverage-mode" value="dynamic" checked onchange="toggleLeverageMode()"> Dynamic
+        </label>
+        <label class="radio-label">
+          <input type="radio" name="live-leverage-mode" value="fixed" onchange="toggleLeverageMode()"> Fixed
+        </label>
+      </div>
+
+      <div class="slider-group">
+        <label>Max Leverage <span id="live-max-leverage-value" class="slider-value">3x</span></label>
+        <input type="range" id="live-max-leverage" min="1" max="10" step="1" value="3"
+          oninput="document.getElementById('live-max-leverage-value').textContent = this.value + 'x'">
+      </div>
+
+      <div class="form-group" id="live-fixed-leverage-group" style="display:none;">
+        <label>Fixed Leverage</label>
+        <input type="number" id="live-fixed-leverage" value="2" min="1" max="10" step="0.5">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Stop Loss % <span style="font-size:11px;color:var(--text2);font-weight:400;">(0 = off)</span></label>
+          <input type="number" id="live-stop-loss" value="5" min="0" max="50" step="0.5">
+        </div>
+        <div class="form-group">
+          <label>Take Profit % <span style="font-size:11px;color:var(--text2);font-weight:400;">(0 = off)</span></label>
+          <input type="number" id="live-take-profit" value="10" min="0" max="100" step="0.5">
+        </div>
+      </div>
+
+      <button class="btn btn-deploy" id="live-deploy-btn" onclick="deployLiveSession()">Deploy Live Session</button>
+      <button class="btn btn-stop" id="live-stop-btn" onclick="stopLiveSession()" disabled>Stop Session</button>
+      <button class="btn btn-close-all" id="live-close-all-btn" onclick="closeAllLivePositions()" disabled>Emergency Close All</button>
+
+      <div id="live-session-status-display" style="display:none;">
+        <div class="session-status">
+          <div>
+            Session: <span id="live-session-id" style="font-weight:600;color:var(--blue);">--</span>
+          </div>
+          <div style="margin-top:4px;">
+            State: <span id="live-state" class="state-badge stopped">--</span>
+          </div>
+          <div class="session-info" id="live-session-info"></div>
+        </div>
+      </div>
+    </div>
+
     <div class="history" id="history-section" style="display:none;">
       <h3>History</h3>
       <div id="history-list"></div>
@@ -389,6 +482,51 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
         </div>
       </div>
     </div>
+
+    <!-- Live Monitor Main Area -->
+    <div id="live-main" class="live-results">
+      <div class="live-empty-state" id="live-empty-state">
+        <h2>Live Monitor</h2>
+        <p>Deploy a real-time paper trading session with leverage support and live market data.</p>
+        <p style="margin-top:16px;font-size:13px;">
+          <strong>API for Agents:</strong><br>
+          <code style="background:var(--bg3);padding:2px 6px;border-radius:4px;">POST /api/paper/deploy { mode: "realtime" }</code>
+          <code style="background:var(--bg3);padding:2px 6px;border-radius:4px;">GET /api/paper/{id}/equity</code>
+        </p>
+      </div>
+      <div id="live-results-content" style="display:none;">
+        <!-- Status Cards -->
+        <div id="live-metrics" class="live-metrics-grid"></div>
+
+        <!-- Open Positions -->
+        <div id="live-positions" class="position-card">
+          <h4>Open Positions</h4>
+          <div id="live-positions-content" class="no-position">No open positions</div>
+        </div>
+
+        <!-- Equity Curve -->
+        <div class="chart-wrapper">
+          <button class="btn-reset-zoom" onclick="resetZoom('live-equity-chart')">Reset Zoom</button>
+          <div id="live-equity-chart" class="chart-container" style="min-height:300px;"></div>
+        </div>
+
+        <!-- Recent Orders -->
+        <div class="orders-section">
+          <h4>Recent Orders (Latest 20)</h4>
+          <div class="chart-container" style="overflow-x:auto;">
+            <table class="trades-table" id="live-orders-table">
+              <thead><tr>
+                <th>Time</th><th>Side</th><th>Quantity</th><th>Price</th>
+                <th>Leverage</th><th>Status</th><th>Commission</th>
+              </tr></thead>
+              <tbody id="live-orders-body">
+                <tr><td colspan="7" style="text-align:center;color:var(--text2);padding:20px;">No orders yet</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -399,6 +537,9 @@ let backtestHistory = [];
 let currentMode = 'backtest';
 let paperSessionId = null;
 let paperPollingInterval = null;
+let liveSessionId = null;
+let livePollingInterval = null;
+let liveDeployTimestamp = null;
 
 // Initialize
 async function init() {
@@ -450,6 +591,7 @@ function toggleMode(mode) {
   // Update toggle buttons
   document.getElementById('mode-backtest').classList.toggle('active', mode === 'backtest');
   document.getElementById('mode-paper').classList.toggle('active', mode === 'paper');
+  document.getElementById('mode-live').classList.toggle('active', mode === 'live');
 
   // Toggle sidebar controls
   document.getElementById('backtest-controls').style.display = mode === 'backtest' ? 'block' : 'none';
@@ -457,6 +599,10 @@ function toggleMode(mode) {
   paperControls.style.display = mode === 'paper' ? 'block' : 'none';
   if (mode === 'paper') paperControls.classList.add('visible');
   else paperControls.classList.remove('visible');
+  const liveControls = document.getElementById('live-controls');
+  liveControls.style.display = mode === 'live' ? 'block' : 'none';
+  if (mode === 'live') liveControls.classList.add('visible');
+  else liveControls.classList.remove('visible');
 
   // Toggle main area
   document.getElementById('backtest-main').style.display = mode === 'backtest' ? 'block' : 'none';
@@ -464,10 +610,21 @@ function toggleMode(mode) {
   paperMain.style.display = mode === 'paper' ? 'block' : 'none';
   if (mode === 'paper') paperMain.classList.add('visible');
   else paperMain.classList.remove('visible');
+  const liveMain = document.getElementById('live-main');
+  liveMain.style.display = mode === 'live' ? 'block' : 'none';
+  if (mode === 'live') liveMain.classList.add('visible');
+  else liveMain.classList.remove('visible');
 
   // Toggle history (only in backtest mode)
   document.getElementById('history-section').style.display =
     (mode === 'backtest' && backtestHistory.length > 0) ? 'block' : 'none';
+
+  // Manage live polling based on mode
+  if (mode === 'live' && liveSessionId) {
+    startLivePolling();
+  } else {
+    stopLivePolling();
+  }
 }
 
 // === Backtest Functions ===
@@ -1000,6 +1157,391 @@ function stopPaperPolling() {
   if (paperPollingInterval) {
     clearInterval(paperPollingInterval);
     paperPollingInterval = null;
+  }
+}
+
+// === Live Monitor Functions ===
+
+function toggleLeverageMode() {
+  const mode = document.querySelector('input[name="live-leverage-mode"]:checked').value;
+  document.getElementById('live-fixed-leverage-group').style.display =
+    mode === 'fixed' ? 'block' : 'none';
+}
+
+async function deployLiveSession() {
+  const deployBtn = document.getElementById('live-deploy-btn');
+  const stopBtn = document.getElementById('live-stop-btn');
+  const closeAllBtn = document.getElementById('live-close-all-btn');
+
+  deployBtn.disabled = true;
+  deployBtn.textContent = 'Deploying...';
+
+  const strategyName = document.getElementById('strategy').value;
+  const leverageMode = document.querySelector('input[name="live-leverage-mode"]:checked').value;
+  const maxLeverage = parseFloat(document.getElementById('live-max-leverage').value);
+  const fixedLeverage = parseFloat(document.getElementById('live-fixed-leverage').value);
+  const stopLoss = parseFloat(document.getElementById('live-stop-loss').value);
+  const takeProfit = parseFloat(document.getElementById('live-take-profit').value);
+  const capital = parseFloat(document.getElementById('live-capital').value);
+
+  const payload = {
+    mode: "realtime",
+    symbol: document.getElementById('symbol').value,
+    interval: document.getElementById('live-interval').value,
+    strategy_name: strategyName,
+    strategy_params: getStrategyParams(),
+    initial_capital: capital,
+    max_leverage: maxLeverage,
+    leverage_mode: leverageMode,
+    fixed_leverage: fixedLeverage,
+    funding_rate: 0.0001,
+    maintenance_margin_rate: 0.005,
+    stop_loss_pct: stopLoss,
+    take_profit_pct: takeProfit,
+  };
+
+  try {
+    const resp = await fetch(`${API}/api/paper/deploy`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const result = await resp.json();
+
+    if (result.error) throw new Error(result.error);
+
+    liveSessionId = result.session_id;
+    liveDeployTimestamp = Date.now();
+    stopBtn.disabled = false;
+    closeAllBtn.disabled = false;
+
+    // Show session status and results
+    document.getElementById('live-session-status-display').style.display = 'block';
+    document.getElementById('live-session-id').textContent = liveSessionId;
+    document.getElementById('live-empty-state').style.display = 'none';
+    document.getElementById('live-results-content').style.display = 'block';
+
+    // Start polling
+    startLivePolling();
+
+    // Initial refresh
+    pollLiveData();
+
+  } catch(e) {
+    console.error('Live deploy error:', e);
+    const statusDisplay = document.getElementById('live-session-status-display');
+    statusDisplay.style.display = 'block';
+    document.getElementById('live-state').textContent = 'error';
+    document.getElementById('live-state').className = 'state-badge error';
+    document.getElementById('live-session-info').textContent = `Error: ${e.message}`;
+  } finally {
+    deployBtn.disabled = false;
+    deployBtn.textContent = 'Deploy Live Session';
+  }
+}
+
+async function stopLiveSession() {
+  if (!liveSessionId) return;
+
+  const stopBtn = document.getElementById('live-stop-btn');
+  stopBtn.disabled = true;
+  stopBtn.textContent = 'Stopping...';
+
+  try {
+    const resp = await fetch(`${API}/api/paper/${liveSessionId}/stop`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+    });
+    const result = await resp.json();
+
+    if (result.error) throw new Error(result.error);
+
+    stopLivePolling();
+    pollLiveData();
+
+  } catch(e) {
+    console.error('Live stop error:', e);
+  } finally {
+    stopBtn.textContent = 'Stop Session';
+  }
+}
+
+async function closeAllLivePositions() {
+  if (!liveSessionId) return;
+
+  const closeBtn = document.getElementById('live-close-all-btn');
+  closeBtn.disabled = true;
+  closeBtn.textContent = 'Closing...';
+
+  try {
+    const resp = await fetch(`${API}/api/paper/${liveSessionId}/close-all`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+    });
+    const result = await resp.json();
+
+    if (result.error) throw new Error(result.error);
+
+    pollLiveData();
+
+  } catch(e) {
+    console.error('Live close all error:', e);
+  } finally {
+    closeBtn.disabled = false;
+    closeBtn.textContent = 'Emergency Close All';
+  }
+}
+
+async function pollLiveData() {
+  if (!liveSessionId) return;
+
+  try {
+    // Fetch session status
+    const statusResp = await fetch(`${API}/api/paper/${liveSessionId}`);
+    const status = await statusResp.json();
+
+    if (status.error) throw new Error(status.error);
+
+    // Update sidebar state display
+    updateLiveStatusDisplay(status);
+
+    // Fetch positions
+    let positions = [];
+    try {
+      const posResp = await fetch(`${API}/api/paper/${liveSessionId}/positions`);
+      const posData = await posResp.json();
+      positions = posData.positions || [];
+    } catch(e) {
+      console.warn('Failed to fetch live positions:', e);
+    }
+
+    // Fetch orders
+    let orders = [];
+    try {
+      const ordersResp = await fetch(`${API}/api/paper/${liveSessionId}/orders`);
+      const ordersData = await ordersResp.json();
+      orders = ordersData.orders || [];
+    } catch(e) {
+      console.warn('Failed to fetch live orders:', e);
+    }
+
+    // Fetch equity curve
+    let equityData = [];
+    try {
+      const equityResp = await fetch(`${API}/api/paper/${liveSessionId}/equity`);
+      const equityResult = await equityResp.json();
+      equityData = equityResult.equity_curve || [];
+    } catch(e) {
+      console.warn('Failed to fetch live equity:', e);
+    }
+
+    // Render everything
+    renderLiveMetrics(status);
+    renderLivePositions(positions);
+    renderLiveOrders(orders);
+    renderLiveEquityChart(equityData);
+
+    // If session ended, stop polling
+    if (status.state === 'completed' || status.state === 'stopped' || status.state === 'error') {
+      stopLivePolling();
+    }
+
+  } catch(e) {
+    console.error('Live poll error:', e);
+  }
+}
+
+function updateLiveStatusDisplay(status) {
+  const stateEl = document.getElementById('live-state');
+  stateEl.textContent = status.state || '--';
+  stateEl.className = `state-badge ${status.state || 'stopped'}`;
+
+  const infoEl = document.getElementById('live-session-info');
+  const config = status.config || {};
+  infoEl.innerHTML = `
+    Strategy: ${config.strategy_name || '--'} | ${config.symbol || '--'}<br>
+    Mode: Realtime | Interval: ${config.interval || '--'}<br>
+    Candles: ${status.candles_processed || 0} | Signals: ${status.signals_generated || 0}
+  `;
+
+  // Update button states
+  const isActive = status.state === 'running';
+  document.getElementById('live-stop-btn').disabled = !isActive;
+  document.getElementById('live-close-all-btn').disabled = !isActive;
+  document.getElementById('live-deploy-btn').disabled = isActive;
+}
+
+function formatUptime(deployTs) {
+  if (!deployTs) return '--';
+  const elapsed = Math.floor((Date.now() - deployTs) / 1000);
+  const h = Math.floor(elapsed / 3600);
+  const m = Math.floor((elapsed % 3600) / 60);
+  const s = elapsed % 60;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
+function renderLiveMetrics(status) {
+  const metricsEl = document.getElementById('live-metrics');
+  const account = status.account || {};
+  const config = status.config || {};
+
+  const equity = account.total_equity || 0;
+  const cash = account.available_cash || 0;
+  const unrealized = account.unrealized_pnl || 0;
+  const realized = account.realized_pnl || 0;
+  const leverage = config.max_leverage || config.fixed_leverage || 1;
+  const leverageMode = config.leverage_mode || 'dynamic';
+  const uptime = formatUptime(liveDeployTimestamp);
+
+  metricsEl.innerHTML = `
+    ${metricCard('Session State', `<span class="state-badge ${status.state || 'stopped'}">${status.state || '--'}</span>`, null)}
+    ${metricCard('Strategy', config.strategy_name || '--', null)}
+    ${metricCard('Uptime', uptime, null)}
+    ${metricCard('Total Equity', '$' + equity.toLocaleString(undefined, {maximumFractionDigits:2}), null)}
+    ${metricCard('Available Cash', '$' + cash.toLocaleString(undefined, {maximumFractionDigits:2}), null)}
+    ${metricCard('Unrealized P&L', '$' + unrealized.toFixed(2), unrealized >= 0)}
+    ${metricCard('Realized P&L', '$' + realized.toFixed(2), realized >= 0)}
+    ${metricCard('Leverage', `<span class="leverage-badge">${leverageMode === 'fixed' ? leverage + 'x Fixed' : 'Max ' + leverage + 'x'}</span>`, null)}
+    ${metricCard('Position', (status.open_positions || []).length > 0 ? (status.open_positions[0].side || 'OPEN') : 'FLAT', (status.open_positions || []).length > 0 ? null : null)}
+  `;
+}
+
+function renderLivePositions(positions) {
+  const posContent = document.getElementById('live-positions-content');
+  if (!positions || positions.length === 0) {
+    posContent.innerHTML = '<div class="no-position">No open positions</div>';
+    return;
+  }
+
+  posContent.innerHTML = positions.map(pos => {
+    const pnlColor = (pos.unrealized_pnl || 0) >= 0 ? 'var(--green)' : 'var(--red)';
+    return `
+      <div class="position-details">
+        <div class="position-detail">
+          <div class="detail-label">Symbol</div>
+          <div class="detail-value">${pos.symbol || '--'}</div>
+        </div>
+        <div class="position-detail">
+          <div class="detail-label">Side</div>
+          <div class="detail-value" style="color:${pos.side === 'LONG' ? 'var(--green)' : 'var(--red)'}">${pos.side || '--'}</div>
+        </div>
+        <div class="position-detail">
+          <div class="detail-label">Quantity</div>
+          <div class="detail-value">${pos.quantity ?? '--'}</div>
+        </div>
+        <div class="position-detail">
+          <div class="detail-label">Entry Price</div>
+          <div class="detail-value">$${(pos.entry_price || 0).toLocaleString(undefined, {maximumFractionDigits:2})}</div>
+        </div>
+        <div class="position-detail">
+          <div class="detail-label">Current Price</div>
+          <div class="detail-value">$${(pos.current_price || pos.mark_price || 0).toLocaleString(undefined, {maximumFractionDigits:2})}</div>
+        </div>
+        <div class="position-detail">
+          <div class="detail-label">Unrealized P&L</div>
+          <div class="detail-value" style="color:${pnlColor}">$${(pos.unrealized_pnl || 0).toFixed(2)}</div>
+        </div>
+        <div class="position-detail">
+          <div class="detail-label">Leverage</div>
+          <div class="detail-value"><span class="leverage-badge">${pos.leverage || 1}x</span></div>
+        </div>
+        <div class="position-detail">
+          <div class="detail-label">Status</div>
+          <div class="detail-value">${pos.status || 'OPEN'}</div>
+        </div>
+      </div>
+    `;
+  }).join('<hr style="border:none;border-top:1px solid var(--border);margin:8px 0;">');
+}
+
+function renderLiveOrders(orders) {
+  const ordersBody = document.getElementById('live-orders-body');
+  const recentOrders = (orders || []).slice(-20).reverse();
+
+  if (recentOrders.length === 0) {
+    ordersBody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:20px;">No orders yet</td></tr>';
+    return;
+  }
+
+  ordersBody.innerHTML = recentOrders.map(order => {
+    const sideColor = (order.side === 'BUY' || order.side === 'SHORT_CLOSE')
+      ? 'var(--green)' : 'var(--red)';
+    const timeStr = order.timestamp ? new Date(order.timestamp).toLocaleString() :
+                    (order.time || order.created_at || '--');
+    return `
+      <tr>
+        <td style="font-size:11px;">${timeStr}</td>
+        <td style="color:${sideColor};font-weight:600;">${order.side || '--'}</td>
+        <td>${order.quantity ?? '--'}</td>
+        <td>$${(order.price || 0).toLocaleString(undefined, {maximumFractionDigits:2})}</td>
+        <td><span class="leverage-badge">${order.leverage || 1}x</span></td>
+        <td><span class="tag ${order.status === 'FILLED' ? 'win' : ''}">${order.status || '--'}</span></td>
+        <td style="font-size:12px;color:var(--text2);">${order.commission != null ? '$' + order.commission.toFixed(4) : '--'}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function renderLiveEquityChart(equityData) {
+  const chartEl = document.getElementById('live-equity-chart');
+
+  if (!equityData || equityData.length === 0) {
+    const darkLayout = getDarkLayout();
+    Plotly.newPlot(chartEl, [], {
+      ...darkLayout,
+      title: { text: 'Live Equity Curve', font: { color: '#e6edf3', size: 14 } },
+      xaxis: { ...darkLayout.xaxis, title: 'Time' },
+      yaxis: { ...darkLayout.yaxis, title: 'Equity ($)' },
+      annotations: [{
+        text: 'Waiting for data...',
+        xref: 'paper', yref: 'paper',
+        x: 0.5, y: 0.5,
+        showarrow: false,
+        font: { color: '#8b949e', size: 16 }
+      }]
+    }, { responsive: true, displayModeBar: false });
+    return;
+  }
+
+  const timestamps = equityData.map(d => d.timestamp || d.time || d[0]);
+  const equities = equityData.map(d => d.equity || d.total_equity || d[1]);
+
+  const trace = {
+    x: timestamps,
+    y: equities,
+    type: 'scatter',
+    mode: 'lines',
+    name: 'Equity',
+    line: { color: '#3fb950', width: 2 },
+    fill: 'tozeroy',
+    fillcolor: 'rgba(63, 185, 80, 0.1)',
+  };
+
+  const darkLayout = getDarkLayout();
+  const layout = {
+    ...darkLayout,
+    title: { text: 'Live Equity Curve', font: { color: '#e6edf3', size: 14 } },
+    xaxis: { ...darkLayout.xaxis, title: 'Time' },
+    yaxis: { ...darkLayout.yaxis, title: 'Equity ($)' },
+    showlegend: false,
+  };
+
+  Plotly.newPlot(chartEl, [trace], layout, { responsive: true, displayModeBar: false });
+}
+
+function startLivePolling() {
+  stopLivePolling();
+  livePollingInterval = setInterval(() => {
+    pollLiveData();
+  }, 10000);
+}
+
+function stopLivePolling() {
+  if (livePollingInterval) {
+    clearInterval(livePollingInterval);
+    livePollingInterval = null;
   }
 }
 
