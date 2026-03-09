@@ -137,6 +137,52 @@ The strategy demonstrates strong performance in bearish regimes but is inherentl
 | 20/50 | 65 | 40 | +10.27% | 65.4% | 0.61 | -14.72% | 26 | 1.48 |
 | 25/50 | 65 | 45 | +5.88% | 71.0% | 0.38 | -17.77% | 31 | 1.32 |
 
+## 2022 Real Bear Market Validation
+
+Tested on **real Binance data** for 2022 (BTC $47,471 → $16,600, Buy & Hold = **-65.03%**).
+
+### All Strategy Comparison (2022)
+
+| Strategy | Return% | WR% | Sharpe | MaxDD% | Trades |
+|----------|---------|-----|--------|--------|--------|
+| **Bear Hunter** | **-21.38%** | **66.7%** | **-0.65** | **-26.62%** | **36** |
+| Volume Breakout | -38.40% | 38.5% | -1.23 | -42.19% | 65 |
+| Trend Rider | -39.34% | 23.1% | -1.16 | -43.30% | 65 |
+| SuperTrend | -47.06% | 31.4% | -1.09 | -53.50% | 118 |
+| RSI+MACD Confluence | -47.46% | 61.3% | -0.79 | -50.51% | 31 |
+| Bollinger Bands | -54.95% | 60.6% | -1.14 | -59.39% | 104 |
+| Momentum Breakout | -55.03% | 28.3% | -1.50 | -55.30% | 92 |
+| RSI | -60.84% | 62.1% | -1.22 | -64.57% | 29 |
+| **Buy & Hold** | **-65.03%** | — | — | — | — |
+| MA Cross | -65.82% | 16.6% | -2.05 | -65.82% | 163 |
+| MACD | -82.63% | 25.4% | -2.93 | -82.64% | 335 |
+
+**Bear Hunter ranked #1** — lost the least among all strategies in the 2022 bear market.
+
+### SL/TP Optimization (2022)
+
+Adding stop-loss dramatically improves performance:
+
+| SL% | TP% | Return% | WR% | Sharpe | MaxDD% | SL Exits | TP Exits |
+|-----|-----|---------|-----|--------|--------|----------|----------|
+| 1.5 | 4 | **+4.87%** | 46.0% | 0.36 | -12.97% | 20 | 5 |
+| 2 | 4 | +4.68% | 52.8% | 0.33 | -14.57% | 16 | 4 |
+| 2 | 2 | +1.60% | 58.3% | 0.16 | -11.09% | 14 | 16 |
+
+With SL=2%, TP=4%: **turned a -21% loss into a +4.68% gain** in BTC's worst year.
+
+### Walk-Forward (2022)
+
+| Config | IS (70%) | OOS (30%) | Decay |
+|--------|----------|-----------|-------|
+| No SL/TP | -16.95% | -4.77% | -71.9% **PASS** |
+| SL=2% TP=4% | +14.51% | -8.59% | 159.2% FAIL |
+
+Without SL/TP, walk-forward passes (OOS outperformed IS — consistently bearish all year).
+With SL/TP, specific thresholds are overfit to IS data.
+
+**Recommendation**: Use SL=2% as a risk-management safety net, but don't depend on specific TP values.
+
 ## Iteration History
 
 **v1** (initial): EMA regime + RSI + Stochastic. Problem: COVER fired on every bullish candle causing premature exits. Stochastic had no filtering effect.
