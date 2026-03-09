@@ -232,13 +232,31 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px;
   font-weight:600; background:rgba(188,140,255,0.2); color:var(--purple);
 }
+
+/* Language Toggle */
+.lang-toggle {
+  display:flex; gap:2px; background:var(--bg3); border-radius:4px; padding:2px;
+}
+.lang-btn {
+  padding:2px 8px; border:none; border-radius:3px; font-size:11px;
+  font-weight:600; cursor:pointer; background:transparent; color:var(--text2);
+  transition:all .2s;
+}
+.lang-btn.active { background:var(--blue); color:#fff; }
+.lang-btn:hover:not(.active) { color:var(--text); }
 </style>
 </head>
 <body>
 <div class="app">
   <div class="sidebar">
-    <h1>Crypto Backtest</h1>
-    <p class="subtitle">AI-Powered Strategy Backtesting Platform</p>
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <h1 data-i18n="app.title">Crypto Backtest</h1>
+      <div class="lang-toggle">
+        <button class="lang-btn" data-lang="en" onclick="setLang('en')">EN</button>
+        <button class="lang-btn" data-lang="zh-TW" onclick="setLang('zh-TW')">中</button>
+      </div>
+    </div>
+    <p class="subtitle" data-i18n="app.subtitle">AI-Powered Strategy Backtesting Platform</p>
 
     <!-- Mode Toggle -->
     <div class="mode-toggle">
@@ -544,15 +562,75 @@ let liveSessionId = null;
 let livePollingInterval = null;
 let liveDeployTimestamp = null;
 
+// === i18n Engine ===
+let _locale = {};
+let _currentLang = 'en';
+
+function detectLang() {
+  const stored = localStorage.getItem('lang');
+  if (stored) return stored;
+  const nav = navigator.language || navigator.userLanguage || 'en';
+  return nav.startsWith('zh') ? 'zh-TW' : 'en';
+}
+
+async function loadLocale(lang) {
+  try {
+    const resp = await fetch(`${window.location.origin}/locales/${lang}.json`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    _locale = await resp.json();
+    _currentLang = lang;
+  } catch(e) {
+    console.warn(`Failed to load locale ${lang}, falling back to en`);
+    if (lang !== 'en') {
+      return loadLocale('en');
+    }
+  }
+}
+
+function t(key, fallback) {
+  const val = _locale[key];
+  if (val !== undefined) return val;
+  return fallback !== undefined ? fallback : key;
+}
+
+function tFormat(key, ...args) {
+  let val = t(key);
+  args.forEach((arg, i) => { val = val.replace(`{${i}}`, arg); });
+  return val;
+}
+
+function applyTranslations() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    const val = _locale[key];
+    if (val !== undefined) el.textContent = val;
+  });
+  // Update lang toggle button states
+  document.querySelectorAll('.lang-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.lang === _currentLang);
+  });
+}
+
+async function setLang(lang) {
+  localStorage.setItem('lang', lang);
+  await loadLocale(lang);
+  applyTranslations();
+  // Re-render dynamic content
+  const sel = document.getElementById('strategy');
+  if (sel && sel.value) renderParams(sel.value);
+}
+
 // Initialize
 async function init() {
   try {
+    await loadLocale(detectLang());
     const resp = await fetch(`${API}/api/strategies`);
     const data = await resp.json();
     strategies = data.strategies || [];
     renderStrategies();
+    applyTranslations();
   } catch(e) {
-    console.error('Failed to load strategies:', e);
+    console.error('Failed to initialize:', e);
   }
 }
 
