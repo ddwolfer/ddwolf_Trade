@@ -365,3 +365,26 @@ class StrategyEngine:
                 return position.liquidation_price
 
         return None
+
+    # ------------------------------------------------------------------
+    # Funding rate helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _funding_candle_interval(interval: str) -> int:
+        """How many candles between funding events (8h cycle)."""
+        intervals = {"1m": 480, "5m": 96, "15m": 32, "30m": 16,
+                     "1h": 8, "2h": 4, "4h": 2, "8h": 1, "12h": 1, "1d": 1}
+        return intervals.get(interval, 8)
+
+    @staticmethod
+    def _funding_prorate_factor(interval: str) -> float:
+        """For intervals >= 8h, prorate funding (multiply rate)."""
+        factors = {"8h": 1.0, "12h": 1.5, "1d": 3.0}
+        return factors.get(interval, 1.0)
+
+    @staticmethod
+    def _calculate_funding_cost(position: Trade, candle: Candle,
+                                funding_rate: float, prorate: float) -> float:
+        """Calculate funding cost for one funding event."""
+        return position.quantity * candle.close * funding_rate * prorate
