@@ -50,7 +50,7 @@ class TestOrderBook:
     def test_empty_bids(self):
         ob = OrderBook("BTCUSDT", 0, [], [OrderBookLevel(100, 1)])
         assert ob.best_bid == 0.0
-        assert ob.mid_price == 50.0
+        assert ob.mid_price == 100.0
 
     def test_empty_asks(self):
         ob = OrderBook("BTCUSDT", 0, [OrderBookLevel(100, 1)], [])

@@ -154,9 +154,9 @@ class OrderBook:
     @property
     def mid_price(self) -> float:
         bb, ba = self.best_bid, self.best_ask
-        if self.bids or self.asks:
+        if bb and ba:
             return (bb + ba) / 2
-        return 0.0
+        return bb or ba or 0.0
 
     @property
     def spread_pct(self) -> float:
