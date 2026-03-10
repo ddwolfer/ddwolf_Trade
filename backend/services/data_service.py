@@ -253,3 +253,22 @@ def get_cached_symbols() -> List[str]:
     rows = conn.execute("SELECT DISTINCT symbol FROM klines").fetchall()
     conn.close()
     return [r[0] for r in rows]
+
+
+def fetch_depth(symbol: str, limit: int = 20) -> 'OrderBook':
+    """Fetch current order book depth from Binance REST API."""
+    from models import OrderBook, OrderBookLevel
+    url = f"https://api.binance.com/api/v3/depth?symbol={symbol}&limit={limit}"
+    try:
+        data = _fetch_url(url)
+        bids = [OrderBookLevel(float(b[0]), float(b[1])) for b in data.get("bids", [])]
+        asks = [OrderBookLevel(float(a[0]), float(a[1])) for a in data.get("asks", [])]
+        return OrderBook(
+            symbol=symbol,
+            timestamp=int(time.time() * 1000),
+            bids=bids,
+            asks=asks,
+        )
+    except Exception as e:
+        print(f"[DataService] Failed to fetch depth for {symbol}: {e}")
+        return OrderBook(symbol=symbol, timestamp=int(time.time() * 1000))

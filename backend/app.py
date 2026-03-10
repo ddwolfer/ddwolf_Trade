@@ -176,6 +176,15 @@ class BacktestHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 self._send_json({"error": str(e)}, 400)
 
+        # GET /api/data/{symbol}/depth
+        elif path.startswith("/api/data/") and path.endswith("/depth"):
+            parts = path.split("/")
+            symbol = parts[3]  # /api/data/BTCUSDT/depth
+            limit = int(params.get("levels", params.get("limit", ["20"]))[0])
+            from services.data_service import fetch_depth
+            depth = fetch_depth(symbol, limit)
+            self._send_json(depth.to_dict())
+
         # GET /api/data/{symbol}
         elif path.startswith("/api/data/"):
             symbol = path.split("/")[-1]
