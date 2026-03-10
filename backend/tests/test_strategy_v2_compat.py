@@ -1,7 +1,7 @@
 """Tests for BaseStrategy v2 interface backward compatibility."""
 import pytest
 from typing import Optional, Dict, Any
-from models import OHLCVData, TradeSignal, MarketContext, Candle
+from models import OHLCVData, TradeSignal, MarketContext
 from strategies.base_strategy import BaseStrategy
 
 

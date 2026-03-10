@@ -16,7 +16,7 @@ import logging
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
-from models import OHLCVData, Candle, TradeSignal
+from models import OHLCVData, Candle, TradeSignal, MarketContext
 from strategies.registry import StrategyRegistry
 from strategies.base_strategy import BaseStrategy
 from services.data_service import fetch_klines
@@ -157,7 +157,7 @@ class LiveTradingEngine:
             self._candle_count += 1
 
             # Generate signal using full ohlcv up to index i
-            signal = self._strategy.generate_signal(ohlcv, i)
+            signal = self._strategy.generate_signal_v2(ohlcv, i, MarketContext())
 
             if signal is not None:
                 self._process_signal(signal, candle)
@@ -197,7 +197,7 @@ class LiveTradingEngine:
                     self._candle_count += 1
 
                     index = len(ohlcv.candles) - 1
-                    signal = self._strategy.generate_signal(ohlcv, index)
+                    signal = self._strategy.generate_signal_v2(ohlcv, index, MarketContext())
 
                     if signal is not None:
                         self._process_signal(signal, latest)
@@ -407,7 +407,7 @@ class LiveTradingEngine:
                 # Clear indicator cache: candle_buffer grows each iteration,
                 # so cached arrays (e.g. RSI) from the previous tick are stale.
                 strategy._indicator_cache.clear()
-                signal = strategy.generate_signal(ohlcv, index)
+                signal = strategy.generate_signal_v2(ohlcv, index, MarketContext())
                 if signal and not liquidated:
                     self._process_signal_with_leverage(
                         signal, candle, ohlcv, index, assessor

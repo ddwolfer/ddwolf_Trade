@@ -8,7 +8,7 @@ Supports:
 - ATR-based trailing stop-loss
 """
 from typing import List, Tuple, Optional
-from models import Candle, OHLCVData, Trade, TradeSignal
+from models import Candle, OHLCVData, Trade, TradeSignal, MarketContext
 from strategies.base_strategy import BaseStrategy
 from services import indicator_service as ind
 from services.leverage_service import LeverageAssessor
@@ -147,7 +147,7 @@ class StrategyEngine:
                         _trailing_min_price = min(_trailing_min_price, candle.low)
 
             # 3. Generate signal
-            signal = strategy.generate_signal(ohlcv, i)
+            signal = strategy.generate_signal_v2(ohlcv, i, MarketContext())
 
             # 4. Process signal
             if signal is not None and capital > 0 and position is None:
