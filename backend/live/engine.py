@@ -54,6 +54,7 @@ class LiveTradingEngine:
         self._candle_count = 0
         self._signal_count = 0
         self._feed = None  # WebSocket feed (realtime mode only)
+        self._depth_feed = None  # BinanceDepthFeed (optional, for OrderBook data)
 
     @property
     def session_id(self) -> str:
@@ -78,6 +79,15 @@ class LiveTradingEngine:
         )
         self._thread.start()
         self.persistence.save_session_state(self.session_id, "running")
+
+    def set_depth_feed(self, depth_feed) -> None:
+        """Attach a BinanceDepthFeed for real-time Order Book data."""
+        self._depth_feed = depth_feed
+
+    def _build_context(self) -> MarketContext:
+        """Build MarketContext with latest data from feeds."""
+        ob = self._depth_feed.get_orderbook() if self._depth_feed else None
+        return MarketContext(orderbook=ob)
 
     def stop(self) -> None:
         """Signal the engine to stop and wait for it to finish."""
@@ -157,7 +167,7 @@ class LiveTradingEngine:
             self._candle_count += 1
 
             # Generate signal using full ohlcv up to index i
-            signal = self._strategy.generate_signal_v2(ohlcv, i, MarketContext())
+            signal = self._strategy.generate_signal_v2(ohlcv, i, self._build_context())
 
             if signal is not None:
                 self._process_signal(signal, candle)
@@ -197,7 +207,7 @@ class LiveTradingEngine:
                     self._candle_count += 1
 
                     index = len(ohlcv.candles) - 1
-                    signal = self._strategy.generate_signal_v2(ohlcv, index, MarketContext())
+                    signal = self._strategy.generate_signal_v2(ohlcv, index, self._build_context())
 
                     if signal is not None:
                         self._process_signal(signal, latest)
@@ -407,7 +417,7 @@ class LiveTradingEngine:
                 # Clear indicator cache: candle_buffer grows each iteration,
                 # so cached arrays (e.g. RSI) from the previous tick are stale.
                 strategy._indicator_cache.clear()
-                signal = strategy.generate_signal_v2(ohlcv, index, MarketContext())
+                signal = strategy.generate_signal_v2(ohlcv, index, self._build_context())
                 if signal and not liquidated:
                     self._process_signal_with_leverage(
                         signal, candle, ohlcv, index, assessor
