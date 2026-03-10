@@ -3,7 +3,7 @@ Base Strategy class - all strategies inherit from this.
 """
 from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any, List
-from models import OHLCVData, TradeSignal
+from models import OHLCVData, TradeSignal, MarketContext
 
 
 class BaseStrategy(ABC):
@@ -76,3 +76,22 @@ class BaseStrategy(ABC):
         if key not in self._indicator_cache:
             self._indicator_cache[key] = compute_fn()
         return self._indicator_cache[key]
+
+    def generate_signal_v2(self, ohlcv: OHLCVData, index: int,
+                           context: MarketContext) -> Optional[TradeSignal]:
+        """Extended signal generation with real-time market context.
+
+        Default: delegates to generate_signal() for backward compatibility.
+        Override in strategies that use Order Book or other real-time data.
+
+        Args:
+            ohlcv: Full OHLCV dataset
+            index: Current candle index
+            context: MarketContext with orderbook, recent_trades, etc.
+        """
+        return self.generate_signal(ohlcv, index)
+
+    @property
+    def uses_market_context(self) -> bool:
+        """True if this strategy overrides generate_signal_v2."""
+        return type(self).generate_signal_v2 is not BaseStrategy.generate_signal_v2
