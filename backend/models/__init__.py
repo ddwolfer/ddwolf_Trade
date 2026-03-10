@@ -124,3 +124,64 @@ class BacktestResult:
             "equity_timestamps": self.equity_timestamps,
             "drawdown_curve": self.drawdown_curve,
         }
+
+
+# --- Order Book Models ---
+
+@dataclass
+class OrderBookLevel:
+    """Single price level in an order book."""
+    price: float
+    quantity: float
+
+
+@dataclass
+class OrderBook:
+    """Order book snapshot with bids and asks."""
+    symbol: str
+    timestamp: int
+    bids: List[OrderBookLevel] = field(default_factory=list)
+    asks: List[OrderBookLevel] = field(default_factory=list)
+
+    @property
+    def best_bid(self) -> float:
+        return self.bids[0].price if self.bids else 0.0
+
+    @property
+    def best_ask(self) -> float:
+        return self.asks[0].price if self.asks else 0.0
+
+    @property
+    def mid_price(self) -> float:
+        bb, ba = self.best_bid, self.best_ask
+        if self.bids or self.asks:
+            return (bb + ba) / 2
+        return 0.0
+
+    @property
+    def spread_pct(self) -> float:
+        mid = self.mid_price
+        if mid == 0:
+            return 0.0
+        return (self.best_ask - self.best_bid) / mid * 100
+
+    def to_dict(self) -> dict:
+        return {
+            "symbol": self.symbol,
+            "timestamp": self.timestamp,
+            "bids": [{"price": l.price, "quantity": l.quantity} for l in self.bids],
+            "asks": [{"price": l.price, "quantity": l.quantity} for l in self.asks],
+            "best_bid": self.best_bid,
+            "best_ask": self.best_ask,
+            "mid_price": self.mid_price,
+            "spread_pct": self.spread_pct,
+        }
+
+
+@dataclass
+class MarketContext:
+    """Real-time market data passed to strategy.generate_signal_v2().
+    Extensible container -- add fields as new data sources are integrated."""
+    orderbook: Optional[OrderBook] = None
+    recent_trades: Optional[List[dict]] = None
+    funding_rate: Optional[float] = None
