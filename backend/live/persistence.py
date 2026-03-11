@@ -65,6 +65,7 @@ class TradingPersistence:
                 filled_quantity REAL,
                 avg_fill_price REAL,
                 commission REAL,
+                leverage REAL DEFAULT 1.0,
                 created_time INTEGER,
                 filled_time INTEGER,
                 reason TEXT,
@@ -108,6 +109,17 @@ class TradingPersistence:
                 ON equity_snapshots(session_id, timestamp);
         """)
         conn.commit()
+        # Schema migration: add leverage column to orders if missing
+        self._migrate_orders_leverage(conn)
+
+    @staticmethod
+    def _migrate_orders_leverage(conn) -> None:
+        """Add leverage column to orders table if it doesn't exist (schema migration)."""
+        cursor = conn.execute("PRAGMA table_info(orders)")
+        columns = {row[1] for row in cursor.fetchall()}
+        if "leverage" not in columns:
+            conn.execute("ALTER TABLE orders ADD COLUMN leverage REAL DEFAULT 1.0")
+            conn.commit()
 
     # ------------------------------------------------------------------
     # Session CRUD
@@ -177,9 +189,9 @@ class TradingPersistence:
         conn.execute(
             "INSERT OR REPLACE INTO orders "
             "(order_id, session_id, symbol, side, order_type, quantity, price, "
-            "status, filled_quantity, avg_fill_price, commission, "
+            "status, filled_quantity, avg_fill_price, commission, leverage, "
             "created_time, filled_time, reason) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 order.order_id,
                 order.session_id,
@@ -192,6 +204,7 @@ class TradingPersistence:
                 order.filled_quantity,
                 order.avg_fill_price,
                 order.commission,
+                order.leverage,
                 order.created_time,
                 order.filled_time,
                 order.reason,
@@ -211,6 +224,11 @@ class TradingPersistence:
     @staticmethod
     def _row_to_order(row: sqlite3.Row) -> LiveOrder:
         """Reconstruct a LiveOrder dataclass from a DB row."""
+        # Handle legacy DB schemas that may not have the leverage column
+        try:
+            leverage = row["leverage"] or 1.0
+        except (IndexError, KeyError):
+            leverage = 1.0
         return LiveOrder(
             order_id=row["order_id"],
             session_id=row["session_id"],
@@ -223,6 +241,7 @@ class TradingPersistence:
             filled_quantity=row["filled_quantity"] or 0.0,
             avg_fill_price=row["avg_fill_price"] or 0.0,
             commission=row["commission"] or 0.0,
+            leverage=leverage,
             created_time=row["created_time"] or 0,
             filled_time=row["filled_time"] or 0,
             reason=row["reason"] or "",

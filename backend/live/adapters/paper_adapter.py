@@ -106,6 +106,7 @@ class PaperTradingAdapter(ExchangeAdapter):
                 quantity=quantity,
                 price=price,
                 status="NEW",
+                leverage=leverage,
                 created_time=now_ms,
                 reason=reason,
             )

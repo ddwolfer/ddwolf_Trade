@@ -24,6 +24,7 @@ class LiveOrder:
     filled_quantity: float = 0.0
     avg_fill_price: float = 0.0
     commission: float = 0.0
+    leverage: float = 1.0
     created_time: int = 0  # ms
     filled_time: int = 0  # ms
     reason: str = ""

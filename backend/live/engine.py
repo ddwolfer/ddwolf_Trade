@@ -257,12 +257,24 @@ class LiveTradingEngine:
                 # Close SHORT
                 self._close_short(position, signal)
 
+    def _resolve_leverage(self, signal: TradeSignal) -> float:
+        """Resolve leverage from signal override or session config."""
+        cfg = self.config
+        if signal.leverage is not None:
+            return min(signal.leverage, cfg.max_leverage)
+        if cfg.leverage_mode == "fixed":
+            return min(cfg.fixed_leverage, cfg.max_leverage)
+        # Dynamic mode in simulated/polling — fall back to fixed_leverage
+        # (full dynamic assessment is only available in realtime mode)
+        return min(cfg.fixed_leverage, cfg.max_leverage)
+
     def _open_long(self, signal: TradeSignal) -> None:
         """Open a LONG position."""
         account = self.adapter.get_account_state()
         price = self.adapter.get_current_price(self.config.symbol)
         if price <= 0:
             return
+        leverage = self._resolve_leverage(signal)
         quantity = account.available_cash / price
 
         order = self.adapter.place_order(
@@ -271,12 +283,14 @@ class LiveTradingEngine:
             order_type="MARKET",
             quantity=quantity,
             reason=signal.reason,
+            leverage=leverage,
+            maintenance_margin_rate=self.config.maintenance_margin_rate,
         )
         self.persistence.save_order(order)
         logger.info(
             f"[{self.session_id}] BUY {order.filled_quantity:.6f} "
             f"{self.config.symbol} @ {order.avg_fill_price:.2f} "
-            f"| {signal.reason}"
+            f"lev={leverage}x | {signal.reason}"
         )
 
     def _close_long(self, position, signal: TradeSignal) -> None:
@@ -301,6 +315,7 @@ class LiveTradingEngine:
         price = self.adapter.get_current_price(self.config.symbol)
         if price <= 0:
             return
+        leverage = self._resolve_leverage(signal)
         quantity = account.available_cash / price
 
         order = self.adapter.place_order(
@@ -309,12 +324,14 @@ class LiveTradingEngine:
             order_type="MARKET",
             quantity=quantity,
             reason=signal.reason,
+            leverage=leverage,
+            maintenance_margin_rate=self.config.maintenance_margin_rate,
         )
         self.persistence.save_order(order)
         logger.info(
             f"[{self.session_id}] SHORT {order.filled_quantity:.6f} "
             f"{self.config.symbol} @ {order.avg_fill_price:.2f} "
-            f"| {signal.reason}"
+            f"lev={leverage}x | {signal.reason}"
         )
 
     def _close_short(self, position, signal: TradeSignal) -> None:
