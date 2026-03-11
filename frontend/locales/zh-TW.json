@@ -120,6 +120,7 @@
   "strategy.desc.Trend Rider": "以 EMA 交叉進場搭配 ATR 追蹤止損出場，順勢持倉以捕捉完整趨勢行情。",
   "strategy.desc.Bear Hunter": "在空頭趨勢中做空超買反彈（EMA 趨勢過濾 + RSI 進出場）。",
   "strategy.desc.Trend Surfer": "雙向趨勢跟蹤：SuperTrend + EMA 多頭時做多，空頭時做空，雙向捕捉趨勢。",
+  "strategy.desc.Stochastic Pulse": "雙震盪器均值回歸策略，結合隨機指標 + RSI 進行短週期剝頭皮。兩者同時超賣時買入，任一恢復即賣出。",
   "param.desc.period": "RSI 計算週期",
   "param.desc.overbought": "超買門檻（賣出訊號）",
   "param.desc.oversold": "超賣門檻（買入訊號）",
@@ -145,5 +146,13 @@
   "param.desc.ema_slow": "慢線 EMA 週期（趨勢判定）",
   "param.desc.rsi_overbought": "觸發做空進場的 RSI 超買水準",
   "param.desc.rsi_oversold": "觸發平空出場的 RSI 超賣水準",
-  "param.desc.rsi_midline": "RSI 中線 — RSI 跌破此線時平空出場"
+  "param.desc.rsi_midline": "RSI 中線 — RSI 跌破此線時平空出場",
+  "param.desc.stoch_k": "隨機指標 %K 週期",
+  "param.desc.stoch_d": "隨機指標 %D 平滑週期",
+  "param.desc.stoch_oversold": "隨機指標超賣門檻（進場）",
+  "param.desc.stoch_overbought": "隨機指標超買門檻（出場）",
+  "param.desc.rsi_entry": "RSI 須低於此值才進場",
+  "param.desc.rsi_exit": "RSI 高於此值觸發出場",
+  "param.desc.use_trend_filter": "啟用 EMA 趨勢過濾（0=關閉, 1=開啟）",
+  "param.desc.trend_period": "趨勢過濾 EMA 週期"
 }

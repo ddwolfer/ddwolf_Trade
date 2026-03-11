@@ -131,6 +131,7 @@
   "strategy.desc.Trend Rider": "Ride trends using EMA crossover entry + ATR trailing stop exit. Stays in trades longer to capture full moves.",
   "strategy.desc.Bear Hunter": "SHORT overbought bounces in bearish regimes (EMA trend filter + RSI entry/exit).",
   "strategy.desc.Trend Surfer": "Dual-direction trend-following: LONG on bullish SuperTrend + EMA, SHORT on bearish. Rides trends both ways.",
+  "strategy.desc.Stochastic Pulse": "Dual-oscillator mean-reversion using Stochastic + RSI for short-timeframe scalping. Buys when both oscillators are oversold, sells when either recovers.",
 
   "param.desc.period": "RSI calculation period",
   "param.desc.overbought": "Overbought threshold (sell signal)",
@@ -157,5 +158,13 @@
   "param.desc.ema_slow": "Slow EMA period for regime detection",
   "param.desc.rsi_overbought": "RSI level to trigger SHORT entry",
   "param.desc.rsi_oversold": "RSI level to trigger COVER exit",
-  "param.desc.rsi_midline": "RSI midline — COVER when RSI crosses below this"
+  "param.desc.rsi_midline": "RSI midline — COVER when RSI crosses below this",
+  "param.desc.stoch_k": "Stochastic %K period",
+  "param.desc.stoch_d": "Stochastic %D smoothing period",
+  "param.desc.stoch_oversold": "Stochastic oversold threshold for entry",
+  "param.desc.stoch_overbought": "Stochastic overbought threshold for exit",
+  "param.desc.rsi_entry": "RSI must be below this to enter",
+  "param.desc.rsi_exit": "RSI above this triggers exit",
+  "param.desc.use_trend_filter": "Enable EMA trend filter (0=off, 1=on)",
+  "param.desc.trend_period": "EMA period for trend filter"
 }
